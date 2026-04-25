@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Package artifacts
+*.vsix
+
+# TypeScript
+*.tsbuildinfo
+
+# esbuild cache
+.esbuild/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

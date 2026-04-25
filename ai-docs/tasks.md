@@ -13,18 +13,18 @@
 
 [Task Details](./phases/1-phase-01.md)
 
-- [ ] P1-T1: Initialize project with `yo code` and configure TypeScript + ESLint
-- [ ] P1-T2: Configure dual esbuild build script
-- [ ] P1-T3: Set up F5 debug launch config
-- [ ] P1-T4: Implement `CustomTextEditorProvider` skeleton
-- [ ] P1-T5: Register custom editor in `package.json` for `.md` / `.markdown`
-- [ ] P1-T6: Add `markdownWeave.openEditor` command + context menu
-- [ ] P1-T7: Create webview HTML shell with CSP and asset loading
-- [ ] P1-T8: Implement ready-handshake between extension host and webview
-- [ ] P1-T9: Implement webview → extension edit pipeline (`postMessage` → `WorkspaceEdit`)
-- [ ] P1-T10: Implement extension → webview document sync (external change detection)
-- [ ] P1-T11: Add echo-loop prevention and debouncing
-- [ ] P1-T12: Implement webview state persistence (`getState`/`setState`)
+- [x] P1-T1: Initialize project with `yo code` and configure TypeScript + ESLint
+- [x] P1-T2: Configure dual esbuild build script
+- [x] P1-T3: Set up F5 debug launch config
+- [x] P1-T4: Implement `CustomTextEditorProvider` skeleton
+- [x] P1-T5: Register custom editor in `package.json` for `.md` / `.markdown`
+- [x] P1-T6: Add `markdownWeave.openEditor` command + context menu
+- [x] P1-T7: Create webview HTML shell with CSP and asset loading
+- [x] P1-T8: Implement ready-handshake between extension host and webview
+- [x] P1-T9: Implement webview → extension edit pipeline (`postMessage` → `WorkspaceEdit`)
+- [x] P1-T10: Implement extension → webview document sync (external change detection)
+- [x] P1-T11: Add echo-loop prevention and debouncing
+- [x] P1-T12: Implement webview state persistence (`getState`/`setState`)
 
 ## Phase 2: CodeMirror 6 Integration & Core Inline Decorations
 

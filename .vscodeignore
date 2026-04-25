@@ -1,0 +1,11 @@
+src/
+webview-ui/src/
+node_modules/
+*.map
+tsconfig.json
+eslint.config.mjs
+.eslintrc*
+.vscode/
+ai-docs/
+CLAUDE.md
+AGENTS.md

@@ -1,0 +1,61 @@
+{
+  "name": "markdownweave",
+  "displayName": "MarkdownWeave",
+  "description": "Obsidian-style inline WYSIWYG editing for Markdown files",
+  "version": "1.0.0-beta.1",
+  "publisher": "markdownweave",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/balazsbohonyi/MarkdownWeave.git"
+  },
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "markdownWeave.editor",
+        "displayName": "Markdown Weave",
+        "selector": [
+          {
+            "filenamePattern": "*.md"
+          },
+          {
+            "filenamePattern": "*.markdown"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "commands": [
+      {
+        "command": "markdownWeave.openEditor",
+        "title": "Open with Markdown Weave",
+        "category": "Markdown Weave"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "markdownWeave.openEditor",
+          "when": "resourceExtname =~ /\\.(md|markdown)$/",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "package": "node esbuild.mjs --production",
+    "check-types": "tsc -p ./ --noEmit",
+    "lint": "eslint ."
+  },
+  "devDependencies": {}
+}

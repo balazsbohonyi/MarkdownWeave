@@ -10,7 +10,8 @@ All planning documents live in `ai-docs/`:
 |---|---|
 | `ai-docs/project.md` | Project overview, goals, functional requirements, architecture, and success metrics. Read this first to understand the project. |
 | `ai-docs/tasks.md` | Task breakdown per phase with status checkboxes (`[ ]` / `[x]`). This is the single source of truth for what's done and what's remaining. |
-| `ai-docs/phases/<N>-phase-<NN>.md` | Implementation details for every task in a phase. Each task has a heading with its ID, goal, step-by-step instructions, and a "Done when" criterion. |
+| `ai-docs/phases/phase-<NN>/plan.md` | Implementation details for every task in a phase. Each task has a heading with its ID, goal, step-by-step instructions, and a "Done when" criterion. |
+| `ai-docs/phases/phase-<NN>/decisions.md` | Optional phase-specific deviations and decisions. This file exists only when implementation diverges from the plan or durable decisions are made. |
 
 ### Task IDs
 
@@ -24,15 +25,19 @@ Tasks use the format `P{phase}-T{task}`. Examples:
 
 When asked to work on a specific task (e.g. "work on P2-T5"):
 
-1. **Read the phase doc** — Open `ai-docs/phases/<N>-phase-<NN>.md` where `<N>` matches the phase number. Find the heading for the task ID (e.g. `## P2-T5: Build decoration infrastructure...`).
-2. **Read the implementation details** — The phase doc contains the goal, step-by-step instructions, files to create/modify, and a "Done when" acceptance criterion.
-3. **Implement** — Follow the steps. Refer to `ai-docs/project.md` for architectural context (project structure in Appendix B, dependencies in Appendix A, extension registration skeleton in Appendix C).
-4. **Mark complete** — In `ai-docs/tasks.md`, change `- [ ] P{N}-T{M}: ...` to `- [x] P{N}-T{M}: ...`.
-5. **Verify** — Check the "Done when" criterion from the phase doc.
+1. **Read project context** — Open `ai-docs/project.md` and `ai-docs/tasks.md`.
+2. **Read prior decisions** — Before working on Phase N, scan every existing `ai-docs/phases/phase-<MM>/decisions.md` for phases `< N`. Earlier deviations may affect the current phase.
+3. **Read current phase decisions if present** — Open `ai-docs/phases/phase-<NN>/decisions.md` if it exists.
+4. **Read the phase plan** — Open `ai-docs/phases/phase-<NN>/plan.md` and find the heading for the task ID (e.g. `## P2-T5: Build decoration infrastructure...`).
+5. **Read the implementation details** — The phase plan contains the goal, step-by-step instructions, files to create/modify, and a "Done when" acceptance criterion.
+6. **Implement** — Follow the steps. Refer to `ai-docs/project.md` for architectural context (project structure in Appendix B, dependencies in Appendix A, extension registration skeleton in Appendix C).
+7. **Document deviations and decisions** — If implementation diverges from the phase plan, or if a durable decision is made, create/update `ai-docs/phases/phase-<NN>/decisions.md`. Use two sections: `## Deviations From Plan` and `## Decisions`. When a phase `decisions.md` is created, also update that phase section in `ai-docs/tasks.md` to add a `Decisions` link next to `Task Details`. Do not create empty `decisions.md` files just to add links.
+8. **Mark complete** — In `ai-docs/tasks.md`, change `- [ ] P{N}-T{M}: ...` to `- [x] P{N}-T{M}: ...`.
+9. **Verify** — Check the "Done when" criterion from the phase plan.
 
 ### Working on Multiple Tasks
 
-- **"Work on P2 tasks"** — Complete all tasks in `ai-docs/phases/2-phase-02.md` sequentially (P2-T1 through P2-T13). Mark each `[x]` in tasks.md as you finish.
+- **"Work on P2 tasks"** — Complete all tasks in `ai-docs/phases/phase-02/plan.md` sequentially (P2-T1 through P2-T13). Mark each `[x]` in tasks.md as you finish.
 - **"Work on P1-T1 to P1-T8"** — Complete the sequential range from P1-T1 through P1-T8 in order. Each task builds on the previous one.
 - **"Work on the next task"** — Find the first `[ ]` checkbox in `ai-docs/tasks.md` (scanning top to bottom) and work on that task.
 
@@ -52,7 +57,7 @@ Phases must be completed in numerical order. Each phase depends on the previous 
 10. **Phase 10** — Performance optimization.
 11. **Phase 11** — Publishing and CI.
 
-Within a phase, tasks should generally be done in order (T1, T2, T3...) as later tasks often depend on earlier ones. The phase doc will note if reordering is safe.
+Within a phase, tasks should generally be done in order (T1, T2, T3...) as later tasks often depend on earlier ones. The phase plan will note if reordering is safe.
 
 ### Dual Build Target
 
@@ -101,7 +106,7 @@ In `ai-docs/tasks.md`, toggle the checkbox:
 - [x] P1-T2: Task completed
 ```
 
-Only mark `[x]` when the "Done when" criterion from the phase doc is satisfied.
+Only mark `[x]` when the "Done when" criterion from the phase plan is satisfied.
 
 ### Commit Conventions
 

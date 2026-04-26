@@ -7,13 +7,35 @@ type WebviewReadyMessage = {
 
 type WebviewEditMessage = {
   type: 'edit';
-  from: number;
-  to: number;
-  insert: string;
+  changes: WebviewEditChange[];
+  before: string;
+  after: string;
   source?: 'webview';
 };
 
-type WebviewMessage = WebviewReadyMessage | WebviewEditMessage;
+type WebviewEditChange = {
+  from: number;
+  to: number;
+  insert: string;
+  deleted: string;
+};
+
+type WebviewOpenLinkMessage = {
+  type: 'openLink';
+  url: string;
+};
+
+type WebviewResolveImageUriMessage = {
+  type: 'resolveImageUri';
+  requestId: number;
+  src: string;
+};
+
+type WebviewMessage =
+  | WebviewReadyMessage
+  | WebviewEditMessage
+  | WebviewOpenLinkMessage
+  | WebviewResolveImageUriMessage;
 
 const DOCUMENT_SYNC_DEBOUNCE_MS = 200;
 
@@ -31,7 +53,9 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
     const workspaceRoots = vscode.workspace.workspaceFolders?.map((folder) => folder.uri) ?? [];
     let isWebviewReady = false;
     let suppressNextSync = false;
+    let syncSuppressionGeneration = 0;
     let documentSyncTimer: NodeJS.Timeout | undefined;
+    let editQueue = Promise.resolve();
 
     webviewPanel.webview.options = {
       enableScripts: true,
@@ -53,24 +77,58 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
       });
     };
 
+    const queueWebviewEdit = (message: WebviewEditMessage): void => {
+      editQueue = editQueue
+        .then(() => applyWebviewEdit(message))
+        .catch((error: unknown) => {
+          console.error('MarkdownWeave failed to apply webview edit.', error);
+        });
+    };
+
     const applyWebviewEdit = async (message: WebviewEditMessage): Promise<void> => {
-      if (!this.isValidEditMessage(message, document)) {
+      if (!this.isValidEditMessage(message)) {
+        return;
+      }
+
+      const currentContent = document.getText();
+      if (currentContent === message.after) {
         return;
       }
 
       const edit = new vscode.WorkspaceEdit();
-      const range = new vscode.Range(document.positionAt(message.from), document.positionAt(message.to));
+      const replacement = this.getReplacement(currentContent, message.after);
+      const range = new vscode.Range(document.positionAt(replacement.from), document.positionAt(replacement.to));
 
-      edit.replace(document.uri, range, message.insert);
+      if (currentContent !== message.before) {
+        console.warn('MarkdownWeave applying edit snapshot after host/webview drift.');
+      }
+
+      edit.replace(document.uri, range, replacement.insert);
+
       suppressNextSync = true;
+      syncSuppressionGeneration += 1;
+      const suppressionGeneration = syncSuppressionGeneration;
 
       try {
         await vscode.workspace.applyEdit(edit);
       } finally {
         setTimeout(() => {
-          suppressNextSync = false;
-        }, 0);
+          if (suppressionGeneration === syncSuppressionGeneration) {
+            suppressNextSync = false;
+          }
+        }, DOCUMENT_SYNC_DEBOUNCE_MS);
       }
+    };
+
+    const resolveImageUri = async (message: WebviewResolveImageUriMessage): Promise<void> => {
+      const uri = await this.getImageWebviewUri(message.src, document, webviewPanel.webview);
+
+      void webviewPanel.webview.postMessage({
+        type: 'imageUri',
+        requestId: message.requestId,
+        src: message.src,
+        uri
+      });
     };
 
     disposables.push(
@@ -82,7 +140,17 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
         }
 
         if (message.type === 'edit') {
-          void applyWebviewEdit(message);
+          queueWebviewEdit(message);
+          return;
+        }
+
+        if (message.type === 'openLink') {
+          void this.openLink(message.url);
+          return;
+        }
+
+        if (message.type === 'resolveImageUri') {
+          void resolveImageUri(message);
         }
       }),
       vscode.workspace.onDidChangeTextDocument((event) => {
@@ -135,23 +203,100 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
 <body>
   <main id="app">
     <div id="status">Markdown Weave loading...</div>
-    <textarea id="editor" spellcheck="false" aria-label="Markdown source"></textarea>
+    <div id="editor" aria-label="Markdown source"></div>
   </main>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
   }
 
-  private isValidEditMessage(message: WebviewEditMessage, document: vscode.TextDocument): boolean {
-    const documentLength = document.getText().length;
+  private async openLink(url: string): Promise<void> {
+    try {
+      await vscode.env.openExternal(vscode.Uri.parse(url));
+    } catch {
+      void vscode.window.showWarningMessage(`Markdown Weave could not open link: ${url}`);
+    }
+  }
 
+  private async getImageWebviewUri(
+    src: string,
+    document: vscode.TextDocument,
+    webview: vscode.Webview
+  ): Promise<string | undefined> {
+    if (/^(?:https?:|data:)/i.test(src)) {
+      return src;
+    }
+
+    if (src.trim().length === 0 || src.startsWith('#')) {
+      return undefined;
+    }
+
+    const [pathWithoutFragment] = src.split('#', 1);
+    const [pathWithoutQuery] = pathWithoutFragment.split('?', 1);
+    const documentDirectory = vscode.Uri.joinPath(document.uri, '..');
+    const imageUri = vscode.Uri.joinPath(documentDirectory, pathWithoutQuery);
+
+    try {
+      const stat = await vscode.workspace.fs.stat(imageUri);
+      if (stat.type === vscode.FileType.Directory) {
+        return undefined;
+      }
+    } catch {
+      return undefined;
+    }
+
+    return webview.asWebviewUri(imageUri).toString();
+  }
+
+  private isValidEditMessage(message: WebviewEditMessage): boolean {
     return (
-      Number.isInteger(message.from) &&
-      Number.isInteger(message.to) &&
-      message.from >= 0 &&
-      message.to >= message.from &&
-      message.to <= documentLength &&
-      typeof message.insert === 'string'
+      Array.isArray(message.changes) &&
+      message.changes.length > 0 &&
+      typeof message.before === 'string' &&
+      typeof message.after === 'string' &&
+      message.changes.every(
+        (change) =>
+          this.hasValidEditShape(change, message.before.length) &&
+          message.before.slice(change.from, change.to) === change.deleted
+      )
     );
+  }
+
+  private hasValidEditShape(change: WebviewEditChange, documentLength: number): boolean {
+    return (
+      Number.isInteger(change.from) &&
+      Number.isInteger(change.to) &&
+      change.from >= 0 &&
+      change.to >= change.from &&
+      change.to <= documentLength &&
+      typeof change.insert === 'string' &&
+      typeof change.deleted === 'string'
+    );
+  }
+
+  private getReplacement(previous: string, next: string): { from: number; to: number; insert: string } {
+    let from = 0;
+
+    while (from < previous.length && from < next.length && previous.charCodeAt(from) === next.charCodeAt(from)) {
+      from += 1;
+    }
+
+    let previousSuffix = previous.length;
+    let nextSuffix = next.length;
+
+    while (
+      previousSuffix > from &&
+      nextSuffix > from &&
+      previous.charCodeAt(previousSuffix - 1) === next.charCodeAt(nextSuffix - 1)
+    ) {
+      previousSuffix -= 1;
+      nextSuffix -= 1;
+    }
+
+    return {
+      from,
+      to: previousSuffix,
+      insert: next.slice(from, nextSuffix)
+    };
   }
 }

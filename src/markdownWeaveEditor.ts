@@ -120,8 +120,8 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
       }
     };
 
-    const resolveImageUri = (message: WebviewResolveImageUriMessage): void => {
-      const uri = this.getImageWebviewUri(message.src, document, webviewPanel.webview);
+    const resolveImageUri = async (message: WebviewResolveImageUriMessage): Promise<void> => {
+      const uri = await this.getImageWebviewUri(message.src, document, webviewPanel.webview);
 
       void webviewPanel.webview.postMessage({
         type: 'imageUri',
@@ -150,7 +150,7 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
         }
 
         if (message.type === 'resolveImageUri') {
-          resolveImageUri(message);
+          void resolveImageUri(message);
         }
       }),
       vscode.workspace.onDidChangeTextDocument((event) => {
@@ -218,7 +218,11 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
     }
   }
 
-  private getImageWebviewUri(src: string, document: vscode.TextDocument, webview: vscode.Webview): string | undefined {
+  private async getImageWebviewUri(
+    src: string,
+    document: vscode.TextDocument,
+    webview: vscode.Webview
+  ): Promise<string | undefined> {
     if (/^(?:https?:|data:)/i.test(src)) {
       return src;
     }
@@ -231,6 +235,15 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
     const [pathWithoutQuery] = pathWithoutFragment.split('?', 1);
     const documentDirectory = vscode.Uri.joinPath(document.uri, '..');
     const imageUri = vscode.Uri.joinPath(documentDirectory, pathWithoutQuery);
+
+    try {
+      const stat = await vscode.workspace.fs.stat(imageUri);
+      if (stat.type === vscode.FileType.Directory) {
+        return undefined;
+      }
+    } catch {
+      return undefined;
+    }
 
     return webview.asWebviewUri(imageUri).toString();
   }

@@ -47,6 +47,37 @@ window.addEventListener('beforeunload', () => {
   editor?.destroy();
 });
 
+window.addEventListener(
+  'keydown',
+  (event) => {
+    if (!editor || event.altKey || event.shiftKey || (!event.ctrlKey && !event.metaKey)) {
+      return;
+    }
+
+    if (event.key.toLowerCase() !== 'a') {
+      return;
+    }
+
+    event.preventDefault();
+    editor.selectAll();
+  },
+  true
+);
+
+window.addEventListener(
+  'copy',
+  (event) => {
+    const selectedText = editor?.getSelectedText();
+    if (!selectedText) {
+      return;
+    }
+
+    event.clipboardData?.setData('text/plain', selectedText);
+    event.preventDefault();
+  },
+  true
+);
+
 function setStatus(message: string): void {
   if (status) {
     status.textContent = message;

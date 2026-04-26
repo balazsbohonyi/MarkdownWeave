@@ -1,6 +1,10 @@
 import type { EditorState } from '@codemirror/state';
 
-export function isEditing(state: EditorState, from: number, to: number): boolean {
+export function isEditing(state: EditorState, from: number, to: number, hasVisibleSelection = true): boolean {
+  if (!hasVisibleSelection) {
+    return false;
+  }
+
   let editing = false;
 
   state.selection.ranges.some((range) => {

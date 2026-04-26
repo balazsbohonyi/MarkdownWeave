@@ -18,18 +18,21 @@ export class CheckboxWidget extends WidgetType {
 
     input.addEventListener('mousedown', (event) => {
       event.preventDefault();
+      event.stopPropagation();
     });
 
     input.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
+      const nextSelection = Math.min(view.state.doc.length, this.to + 1);
+
       view.dispatch({
         changes: {
           from: this.from,
           to: this.to,
           insert: this.checked ? '[ ]' : '[x]'
         },
-        selection: { anchor: this.to }
+        selection: { anchor: nextSelection }
       });
     });
 
@@ -37,6 +40,6 @@ export class CheckboxWidget extends WidgetType {
   }
 
   public ignoreEvent(): boolean {
-    return false;
+    return true;
   }
 }

@@ -42,7 +42,14 @@ type VsCodeApi = {
 declare function acquireVsCodeApi(): VsCodeApi;
 
 const vscode = acquireVsCodeApi();
-const imageUriHandlers = new Map<number, (uri: string | undefined) => void>();
+type PendingImageUriRequest = {
+  requestId: number;
+  callbacks: Array<(uri: string | undefined) => void>;
+};
+
+const imageUriHandlers = new Map<number, PendingImageUriRequest>();
+const imageUriCache = new Map<string, string | undefined>();
+const pendingImageUriRequests = new Map<string, PendingImageUriRequest>();
 let nextImageRequestId = 1;
 
 export function postReady(): void {
@@ -62,8 +69,21 @@ export function postOpenLink(url: string): void {
 }
 
 export function resolveImageUri(src: string, callback: (uri: string | undefined) => void): void {
+  if (imageUriCache.has(src)) {
+    queueMicrotask(() => callback(imageUriCache.get(src)));
+    return;
+  }
+
+  const pending = pendingImageUriRequests.get(src);
+  if (pending) {
+    pending.callbacks.push(callback);
+    return;
+  }
+
   const requestId = nextImageRequestId++;
-  imageUriHandlers.set(requestId, callback);
+  const request = { requestId, callbacks: [callback] };
+  imageUriHandlers.set(requestId, request);
+  pendingImageUriRequests.set(src, request);
   vscode.postMessage({ type: 'resolveImageUri', requestId, src });
 }
 
@@ -80,8 +100,10 @@ export function handleBridgeMessage(message: HostMessage): boolean {
     return false;
   }
 
-  const handler = imageUriHandlers.get(message.requestId);
+  const request = imageUriHandlers.get(message.requestId);
   imageUriHandlers.delete(message.requestId);
-  handler?.(message.uri);
+  pendingImageUriRequests.delete(message.src);
+  imageUriCache.set(message.src, message.uri);
+  request?.callbacks.forEach((callback) => callback(message.uri));
   return true;
 }

@@ -7,21 +7,43 @@ export type ImageWidgetOptions = {
   raw: string;
   from: number;
   to: number;
+  block?: boolean;
   width?: number;
   height?: number;
 };
 
 const remoteUriPattern = /^(?:https?:|data:|vscode-resource:|vscode-webview-resource:)/i;
+let selectedImageKey: string | undefined;
 
 export class ImageWidget extends WidgetType {
   public constructor(private readonly options: ImageWidgetOptions) {
     super();
   }
 
+  public eq(widget: WidgetType): boolean {
+    return (
+      widget instanceof ImageWidget &&
+      widget.options.alt === this.options.alt &&
+      widget.options.src === this.options.src &&
+      widget.options.raw === this.options.raw &&
+      widget.options.from === this.options.from &&
+      widget.options.to === this.options.to &&
+      widget.options.block === this.options.block &&
+      widget.options.width === this.options.width &&
+      widget.options.height === this.options.height
+    );
+  }
+
   public toDOM(view: EditorView): HTMLElement {
-    const wrapper = document.createElement('span');
-    wrapper.className = 'mw-image-widget';
+    const wrapper = document.createElement(this.options.block ? 'div' : 'span');
+    wrapper.className = this.options.block ? 'mw-image-widget mw-image-widget-block' : 'mw-image-widget';
     wrapper.contentEditable = 'false';
+    wrapper.dataset.imageFrom = String(this.options.from);
+    wrapper.dataset.imageTo = String(this.options.to);
+
+    if (this.options.block && selectedImageKey === getImageKey(this.options)) {
+      wrapper.classList.add('mw-image-widget-selected');
+    }
 
     const image = document.createElement('img');
     image.className = 'mw-image-preview';
@@ -38,15 +60,20 @@ export class ImageWidget extends WidgetType {
 
     const placeholder = document.createElement('span');
     placeholder.className = 'mw-image-placeholder';
-    placeholder.textContent = this.options.alt || this.options.src;
+    placeholder.textContent = `"${getImageName(this.options.src)}" could not be found.`;
+    let handle: HTMLSpanElement | undefined;
 
-    image.addEventListener('error', () => {
+    const showPlaceholder = (): void => {
+      wrapper.classList.add('mw-image-widget-missing');
       image.replaceWith(placeholder);
-    });
+      handle?.remove();
+    };
+
+    image.addEventListener('error', showPlaceholder);
 
     const setImageSrc = (uri: string | undefined): void => {
       if (!uri) {
-        image.replaceWith(placeholder);
+        showPlaceholder();
         return;
       }
 
@@ -59,7 +86,7 @@ export class ImageWidget extends WidgetType {
       resolveImageUri(this.options.src, setImageSrc);
     }
 
-    const handle = document.createElement('span');
+    handle = document.createElement('span');
     handle.className = 'mw-image-resize-handle';
     handle.setAttribute('aria-hidden', 'true');
 
@@ -100,11 +127,51 @@ export class ImageWidget extends WidgetType {
       window.addEventListener('mouseup', onUp);
     });
 
+    wrapper.addEventListener('mousedown', (event) => {
+      const mouseEvent = event as MouseEvent;
+      if (mouseEvent.button !== 0 || mouseEvent.target === handle) {
+        return;
+      }
+
+      mouseEvent.preventDefault();
+      mouseEvent.stopPropagation();
+      selectedImageKey = getImageKey(this.options);
+      clearSelectedImageWidgets();
+      wrapper.classList.add('mw-image-widget-selected');
+      view.focus();
+      view.dispatch({
+        selection: { anchor: this.options.from }
+      });
+    });
+
     wrapper.append(image, handle);
     return wrapper;
   }
 
   public ignoreEvent(): boolean {
-    return false;
+    return true;
   }
+}
+
+function getImageName(src: string): string {
+  const withoutFragment = src.split('#', 1)[0];
+  const withoutQuery = withoutFragment.split('?', 1)[0];
+  const normalized = withoutQuery.replace(/\\/g, '/');
+  const name = normalized.split('/').filter(Boolean).pop() ?? src;
+
+  try {
+    return decodeURIComponent(name);
+  } catch {
+    return name;
+  }
+}
+
+function getImageKey(options: ImageWidgetOptions): string {
+  return `${options.from}:${options.to}:${options.raw}`;
+}
+
+function clearSelectedImageWidgets(): void {
+  document
+    .querySelectorAll('.mw-image-widget-selected')
+    .forEach((widget) => widget.classList.remove('mw-image-widget-selected'));
 }

@@ -28,17 +28,189 @@ body {
 
 #editor {
   flex: 1 1 auto;
-  box-sizing: border-box;
-  width: 100%;
   min-height: 0;
-  resize: none;
-  padding: 18px 22px;
-  border: 0;
-  outline: 0;
-  background: var(--vscode-editor-background);
+}
+
+#editor:focus,
+#editor:focus-within,
+.cm-editor.cm-focused,
+.cm-content,
+.cm-content:focus,
+.cm-scroller,
+.cm-scroller:focus {
+  outline: none !important;
+}
+
+.cm-line {
+  min-height: 1.6em;
+}
+
+.cm-cursor,
+.cm-dropCursor {
+  border-left-color: var(--vscode-editorCursor-foreground) !important;
+}
+
+.mw-heading {
+  display: inline-block;
   color: var(--vscode-editor-foreground);
-  font-family: var(--vscode-editor-font-family, var(--vscode-font-family));
-  font-size: var(--vscode-editor-font-size, 14px);
-  line-height: 1.6;
-  tab-size: 2;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.mw-h1 {
+  margin: 0.4em 0 0.2em;
+  font-size: 2em;
+}
+
+.mw-h2 {
+  margin: 0.35em 0 0.18em;
+  font-size: 1.5em;
+}
+
+.mw-h3 {
+  font-size: 1.25em;
+}
+
+.mw-h4 {
+  font-size: 1.12em;
+}
+
+.mw-h5 {
+  font-size: 1em;
+}
+
+.mw-h6 {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.95em;
+}
+
+.mw-strong {
+  font-weight: 700;
+}
+
+.mw-emphasis {
+  font-style: italic;
+}
+
+.mw-strike {
+  text-decoration: line-through;
+}
+
+.mw-inline-code {
+  padding: 0 0.28em;
+  border-radius: 4px;
+  background: var(--vscode-textCodeBlock-background);
+  color: var(--vscode-editor-foreground);
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.92em;
+}
+
+.mw-link {
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.mw-blockquote {
+  border-left: 3px solid var(--vscode-textBlockQuote-border, var(--vscode-editorWidget-border));
+  color: var(--vscode-textBlockQuote-foreground, var(--vscode-descriptionForeground));
+  background: var(--vscode-textBlockQuote-background, transparent);
+}
+
+.cm-line.mw-blockquote {
+  padding-left: 0.7em;
+}
+
+.mw-blockquote-depth-2 {
+  border-left-width: 5px;
+}
+
+.mw-blockquote-depth-3,
+.mw-blockquote-depth-4,
+.mw-blockquote-depth-5,
+.mw-blockquote-depth-6 {
+  border-left-width: 7px;
+}
+
+.mw-hr-wrapper {
+  display: block;
+  padding: 0.55em 0;
+}
+
+.mw-hr {
+  height: 1px;
+  margin: 0;
+  border: 0;
+  background: var(--vscode-editorWidget-border);
+}
+
+.mw-list-line {
+  padding-left: 0.2em;
+}
+
+.mw-list-indent-1 {
+  padding-left: 1.25em;
+}
+
+.mw-list-indent-2 {
+  padding-left: 2.5em;
+}
+
+.mw-list-indent-3,
+.mw-list-indent-4,
+.mw-list-indent-5,
+.mw-list-indent-6,
+.mw-list-indent-7,
+.mw-list-indent-8 {
+  padding-left: 3.75em;
+}
+
+.mw-list-marker {
+  display: inline-block;
+  width: 1.6em;
+  color: var(--vscode-editorLineNumber-foreground);
+  text-align: right;
+}
+
+.mw-checkbox {
+  width: 1em;
+  height: 1em;
+  margin: 0 0.45em 0 0.1em;
+  vertical-align: -0.15em;
+  accent-color: var(--vscode-textLink-foreground);
+}
+
+.mw-image-widget {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  margin: 0.25em 0;
+  vertical-align: middle;
+}
+
+.mw-image-preview {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+.mw-image-placeholder {
+  display: inline-block;
+  padding: 0.35em 0.6em;
+  border: 1px solid var(--vscode-editorWidget-border);
+  border-radius: 4px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.mw-image-resize-handle {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--vscode-editor-background);
+  background: var(--vscode-textLink-foreground);
+  cursor: nwse-resize;
 }

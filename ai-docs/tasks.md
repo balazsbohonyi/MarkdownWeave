@@ -30,19 +30,19 @@
 
 [Task Details](./phases/2-phase-02.md)
 
-- [ ] P2-T1: Install CM6 packages and instantiate `EditorView` in webview
-- [ ] P2-T2: Bridge CM6 transactions to the extension host edit pipeline
-- [ ] P2-T3: Bridge extension host document changes to CM6 state updates
-- [ ] P2-T4: Apply VS Code theme CSS variables to CM6 base theme
-- [ ] P2-T5: Build decoration infrastructure: `ViewPlugin` + selection-aware show/hide
-- [ ] P2-T6: Heading decoration (h1–h6, ATX + setext)
-- [ ] P2-T7: Bold / italic / strikethrough inline decoration (sub-block granularity)
-- [ ] P2-T8: Inline code decoration
-- [ ] P2-T9: Link decoration + Ctrl+Click to follow
-- [ ] P2-T10: Image decoration (inline preview + `=WxH` resize)
-- [ ] P2-T11: Blockquote decoration
-- [ ] P2-T12: Horizontal rule decoration
-- [ ] P2-T13: List + checkbox decoration (clickable checkboxes)
+- [x] P2-T1: Install CM6 packages and instantiate `EditorView` in webview
+- [x] P2-T2: Bridge CM6 transactions to the extension host edit pipeline
+- [x] P2-T3: Bridge extension host document changes to CM6 state updates
+- [x] P2-T4: Apply VS Code theme CSS variables to CM6 base theme
+- [x] P2-T5: Build decoration infrastructure: `ViewPlugin` + selection-aware show/hide
+- [x] P2-T6: Heading decoration (h1–h6, ATX + setext)
+- [x] P2-T7: Bold / italic / strikethrough inline decoration (sub-block granularity)
+- [x] P2-T8: Inline code decoration
+- [x] P2-T9: Link decoration + Ctrl+Click to follow
+- [x] P2-T10: Image decoration (inline preview + `=WxH` resize)
+- [x] P2-T11: Blockquote decoration
+- [x] P2-T12: Horizontal rule decoration
+- [x] P2-T13: List + checkbox decoration (clickable checkboxes)
 
 ## Phase 3: Block Widgets & Advanced Rendering
 

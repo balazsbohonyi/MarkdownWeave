@@ -26,7 +26,7 @@ source text.
 
 ## Current Status
 
-Completed foundation:
+Completed foundation through Phase 3:
 
 - VS Code custom editor registration for `.md` and `.markdown` files.
 - Webview-based editor shell with extension-host/webview messaging.
@@ -34,11 +34,13 @@ Completed foundation:
 - Core inline and block decorations for common Markdown elements.
 - Clickable links, image previews, image resizing, checkboxes, and nested list
   editing behavior for the currently implemented core decorations.
+- Advanced block widgets for fenced code, tables, math, Mermaid diagrams,
+frontmatter, and sanitized embedded HTML.
+- Shiki v4 syntax highlighting, KaTeX rendering, Mermaid rendering,
+  and DOMPurify-based HTML sanitization.
 
 Still planned:
 
-- Advanced block widgets such as code blocks, tables, math, Mermaid diagrams,
-  frontmatter, and embedded HTML.
 - Wiki links and link validation.
 - Formatting shortcuts, image paste, drag-and-drop file handling, outline
   navigation, side-by-side mode, theming, settings, performance hardening, and
@@ -67,11 +69,25 @@ The beta currently supports live decorations for:
 - Horizontal rules.
 - Ordered and unordered lists, including nested lists.
 - Task-list checkboxes with preview-mode toggling.
+- Fenced code blocks with Shiki v4 previews and editable source mode.
+- Read-only rendered tables with source toggle and source-range selection.
+- Inline and display math rendered with KaTeX.
+- Mermaid diagrams with preview rendering, source toggle, resize handle, and
+  source-range selection.
+- YAML frontmatter collapse/expand pill.
+- Sanitized embedded HTML, including safe HTML image preview and resize.
 
-Image resize syntax follows the Typora-style suffix:
+Existing Typora-style Markdown image size suffixes are supported:
 
 ```markdown
 ![Alt text](./image.png =300x200)
+```
+
+New Markdown image resize operations write safe HTML image tags so VS Code's
+built-in Markdown preview can render the resized image:
+
+```markdown
+<img src="./image.png" alt="Alt text" width="300" height="200">
 ```
 
 ## Planned Features And Status
@@ -93,19 +109,19 @@ Image resize syntax follows the Typora-style suffix:
 | Bold, italic, and strikethrough inline decorations | Implemented |
 | Inline code decoration | Implemented |
 | Link decoration and Ctrl+Click navigation | Implemented |
-| Image decoration, preview, fallback, and `=WxH` resizing | Implemented |
+| Image decoration, preview, fallback, legacy `=WxH` support, and HTML resize persistence | Implemented |
 | Blockquote decoration | Implemented |
 | Horizontal rule decoration | Implemented |
 | Ordered, unordered, nested, and checkbox list decoration | Implemented |
-| Fenced code block widgets | Planned |
-| Shiki v3 syntax highlighting on the extension host | Planned |
-| Lazy code block highlighting | Planned |
-| Read-only rendered Markdown tables | Planned |
-| Table raw-source toggle | Planned |
-| KaTeX inline and display math rendering | Planned |
-| Mermaid diagram rendering | Planned |
-| YAML frontmatter collapse/expand widget | Planned |
-| Embedded HTML rendering with sanitization | Planned |
+| Fenced code block widgets | Implemented |
+| Shiki v4 syntax highlighting on the extension host | Implemented |
+| Lazy code block highlighting | Implemented |
+| Read-only rendered Markdown tables | Implemented |
+| Table raw-source toggle | Implemented |
+| KaTeX inline and display math rendering | Implemented |
+| Mermaid diagram rendering | Implemented |
+| YAML frontmatter collapse/expand widget | Implemented |
+| Embedded HTML rendering with sanitization | Implemented |
 | Wiki link rendering for `[[page]]` syntax | Planned |
 | Wiki link aliases and heading targets | Planned |
 | Wiki link existence checks and broken-link styling | Planned |
@@ -158,6 +174,22 @@ npm run watch
 ```
 
 Then launch the extension from VS Code using the configured debug launch target.
+
+### Testing The Extension Locally
+
+Press **F5** (or run **Debug: Start Debugging**) to open the Extension Development
+Host — a second VS Code window with the extension loaded.
+
+Open any `.md` file in that window and use the Explorer context menu or
+**Reopen Editor With… → Markdown Weave** to activate the custom editor.
+
+After making a code change during a `watch` build, press **Ctrl+Shift+F5** to
+restart the debug session without closing the window.
+
+To inspect the webview, open **Help → Toggle Developer Tools** inside the
+Extension Development Host window. The webview renders in its own iframe; select
+it in the DevTools frame picker to inspect the CodeMirror DOM and run console
+commands against the editor.
 
 ## Architecture
 

@@ -1,5 +1,5 @@
-import type { Range } from '@codemirror/state';
-import { EditorState, StateEffect } from '@codemirror/state';
+import type { Extension, Range, Transaction, TransactionSpec } from '@codemirror/state';
+import { EditorSelection, EditorState, StateEffect } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import { Decoration, DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import type { SyntaxNode, SyntaxNodeRef } from '@lezer/common';
@@ -8,6 +8,7 @@ import { HrWidget } from '../widgets/HrWidget';
 import { ImageWidget } from '../widgets/ImageWidget';
 import { ListMarkerWidget } from '../widgets/ListMarkerWidget';
 import { postOpenLink } from '../bridge';
+import { findFrontmatterRange, rangeOverlaps, type RawRange } from './ranges';
 import { isEditing } from './selectionUtils';
 
 type DecorationHandler = (node: SyntaxNodeRef, context: DecorationContext) => Range<Decoration>[];
@@ -17,6 +18,7 @@ type DecorationContext = {
   doc: string;
   hasFocus: boolean;
   listMarkers: Map<number, string>;
+  frontmatterRange: RawRange | undefined;
 };
 
 type MarkdownNode = {
@@ -29,7 +31,6 @@ type MarkdownNode = {
 const handlers = new Map<string, DecorationHandler[]>();
 const headingPattern = /^ATXHeading([1-6])$/;
 const unorderedListMarkers = ['\u2022', '\u25E6', '\u25AA'];
-const SELECTION_DECORATION_DELAY_MS = 140;
 const selectionSettled = StateEffect.define<void>();
 let pointerSelectionInProgress = false;
 let removePointerFinishListeners: (() => void) | undefined;
@@ -37,7 +38,6 @@ let removePointerFinishListeners: (() => void) | undefined;
 export const markdownDecorations = ViewPlugin.fromClass(
   class {
     public decorations: DecorationSet;
-    private selectionTimer: number | undefined;
 
     public constructor(view: EditorView) {
       this.decorations = buildDecorations(view);
@@ -50,7 +50,6 @@ export const markdownDecorations = ViewPlugin.fromClass(
       }
 
       if (update.docChanged || update.viewportChanged || update.focusChanged) {
-        this.clearSelectionTimer();
         this.decorations = buildDecorations(update.view);
         return;
       }
@@ -59,32 +58,16 @@ export const markdownDecorations = ViewPlugin.fromClass(
         return;
       }
 
-      this.clearSelectionTimer();
-
       if (update.state.selection.ranges.some((range) => !range.empty)) {
         if (pointerSelectionInProgress) {
           return;
         }
 
-        this.selectionTimer = window.setTimeout(() => {
-          this.selectionTimer = undefined;
-          update.view.dispatch({ effects: selectionSettled.of() });
-        }, SELECTION_DECORATION_DELAY_MS);
+        this.decorations = buildDecorations(update.view);
         return;
       }
 
       this.decorations = buildDecorations(update.view);
-    }
-
-    public destroy(): void {
-      this.clearSelectionTimer();
-    }
-
-    private clearSelectionTimer(): void {
-      if (this.selectionTimer) {
-        clearTimeout(this.selectionTimer);
-        this.selectionTimer = undefined;
-      }
     }
   },
   {
@@ -109,9 +92,11 @@ export const markdownDecorations = ViewPlugin.fromClass(
 
 export const linkClickExtension = EditorView.domEventHandlers({
   mousedown(event, view) {
-    return openLinkFromMouseEvent(event, view) || moveCursorOutsideInlineBoundary(event, view);
+    return openLinkFromMouseEvent(event, view) || moveCursorOutsideHiddenBoundary(event, view);
   }
 });
+
+export const markdownBoundarySnapping: Extension = EditorState.transactionFilter.of(snapHeadingBoundaryTransaction);
 
 function registerDecoration(nodeName: string, handler: DecorationHandler): void {
   const existing = handlers.get(nodeName) ?? [];
@@ -125,7 +110,8 @@ function buildDecorations(view: EditorView): DecorationSet {
     state: view.state,
     doc: view.state.doc.toString(),
     hasFocus: view.hasFocus,
-    listMarkers: buildListMarkers(view.state)
+    listMarkers: buildListMarkers(view.state),
+    frontmatterRange: findFrontmatterRange(view.state)
   };
 
   for (const visibleRange of view.visibleRanges) {
@@ -133,6 +119,10 @@ function buildDecorations(view: EditorView): DecorationSet {
       from: visibleRange.from,
       to: visibleRange.to,
       enter(node) {
+        if (context.frontmatterRange && node.from >= context.frontmatterRange.from && node.to <= context.frontmatterRange.to) {
+          return false;
+        }
+
         const nodeHandlers = handlers.get(node.name);
         if (!nodeHandlers) {
           return;
@@ -146,6 +136,8 @@ function buildDecorations(view: EditorView): DecorationSet {
 
     ranges.push(...buildImageDecorations(visibleRange.from, visibleRange.to, context));
   }
+
+  ranges.push(...buildOptimisticHeadingDecorations(context));
 
   return Decoration.set(ranges, true);
 }
@@ -207,6 +199,10 @@ function headingDecoration(node: SyntaxNodeRef, context: DecorationContext): Ran
   const lineText = context.doc.slice(node.from, node.to);
   const level = atxMatch ? Number(atxMatch[1]) : node.name === 'SetextHeading1' ? 1 : 2;
   const editing = isEditing(context.state, node.from, node.to, context.hasFocus);
+
+  if (!atxMatch && isEditingPartialSetextMarker(context, node)) {
+    return [];
+  }
 
   addHeadingLineDecoration(ranges, context, node.from, level);
 
@@ -371,6 +367,10 @@ function listItemDecoration(node: SyntaxNodeRef, context: DecorationContext): Ra
   const ranges: Range<Decoration>[] = [];
   const markerTo = context.doc.charAt(marker.to) === ' ' ? marker.to + 1 : marker.to;
   const line = context.state.doc.lineAt(node.from);
+  if (isEditingSingleListMarkerLine(context, line.from, line.to)) {
+    return [];
+  }
+
   const indent = Math.min(8, Math.floor((line.text.match(/^\s*/)?.[0].length ?? 0) / 2));
   const task = children.find((child) => child.name === 'Task');
   const taskMarker = task ? childNodes(task).find((child) => child.name === 'TaskMarker') : undefined;
@@ -421,6 +421,9 @@ function buildImageDecorations(from: number, to: number, context: DecorationCont
   while ((match = imagePattern.exec(visibleText)) !== null) {
     const imageFrom = from + match.index;
     const imageTo = imageFrom + match[0].length;
+    if (context.frontmatterRange && rangeOverlaps(imageFrom, imageTo, [context.frontmatterRange])) {
+      continue;
+    }
 
     const src = match[2].trim();
     if (src.length === 0) {
@@ -464,6 +467,120 @@ function buildImageDecorations(from: number, to: number, context: DecorationCont
   }
 
   return ranges;
+}
+
+function buildOptimisticHeadingDecorations(context: DecorationContext): Range<Decoration>[] {
+  if (!context.hasFocus || !context.state.selection.main.empty) {
+    return [];
+  }
+
+  const line = context.state.doc.lineAt(context.state.selection.main.head);
+  if (context.frontmatterRange && rangeOverlaps(line.from, line.to, [context.frontmatterRange])) {
+    return [];
+  }
+
+  const match = /^(#{1,6})(?=[^\s#]|$)/.exec(line.text);
+  if (!match) {
+    return [];
+  }
+
+  const level = match[1].length;
+  return [Decoration.line({ class: `mw-heading-line mw-h${level}-line` }).range(line.from)];
+}
+
+function isEditingSingleListMarkerLine(context: DecorationContext, from: number, to: number): boolean {
+  if (!context.hasFocus || !context.state.selection.main.empty) {
+    return false;
+  }
+
+  const selection = context.state.selection.main.head;
+  if (selection < from || selection > to) {
+    return false;
+  }
+
+  return /^[ \t]*[-+*][ \t]*$/.test(context.state.doc.sliceString(from, to));
+}
+
+function isEditingPartialSetextMarker(context: DecorationContext, node: SyntaxNodeRef): boolean {
+  if (!context.hasFocus || !context.state.selection.main.empty) {
+    return false;
+  }
+
+  const marker = childNodes(node).find((child) => child.name === 'HeaderMark');
+  if (!marker) {
+    return false;
+  }
+
+  const selection = context.state.selection.main.head;
+  if (selection < marker.from || selection > marker.to) {
+    return false;
+  }
+
+  const markerText = context.doc.slice(marker.from, marker.to).trim();
+  return /^-{1,2}$/.test(markerText);
+}
+
+function snapHeadingBoundaryTransaction(transaction: Transaction): TransactionSpec | readonly TransactionSpec[] {
+  if (
+    !transaction.selection ||
+    transaction.docChanged ||
+    transaction.newSelection.ranges.some((range) => !range.empty) ||
+    transaction.newSelection.main.goalColumn === undefined
+  ) {
+    return transaction;
+  }
+
+  const selection = transaction.newSelection.main;
+  const snapPosition = getHeadingBoundarySnapPosition(transaction.state, selection.head);
+  if (snapPosition === undefined || snapPosition === selection.head) {
+    return transaction;
+  }
+
+  return [
+    transaction,
+    {
+      selection: EditorSelection.cursor(snapPosition, selection.assoc, undefined, selection.goalColumn),
+      scrollIntoView: transaction.scrollIntoView
+    }
+  ];
+}
+
+function getHeadingBoundarySnapPosition(state: EditorState, position: number): number | undefined {
+  const candidates: Array<{ from: number; to: number; snap: number }> = [];
+
+  syntaxTree(state).iterate({
+    from: Math.max(0, position - 1),
+    to: Math.min(state.doc.length, position + 1),
+    enter(node) {
+      if (!headingPattern.test(node.name)) {
+        return;
+      }
+
+      const lineText = state.sliceDoc(node.from, node.to);
+      const prefix = lineText.match(/^#{1,6}[ \t]*/)?.[0] ?? '';
+      if (!prefix) {
+        return;
+      }
+
+      const suffix = lineText.match(/[ \t]+#{1,}[ \t]*$/)?.[0] ?? '';
+      const contentFrom = node.from + prefix.length;
+      const contentTo = Math.max(contentFrom, node.to - suffix.length);
+      let snap: number | undefined;
+
+      if (position === contentFrom) {
+        snap = node.from;
+      } else if (suffix.length > 0 && position === contentTo) {
+        snap = node.to;
+      }
+
+      if (snap !== undefined) {
+        candidates.push({ from: node.from, to: node.to, snap });
+      }
+    }
+  });
+
+  candidates.sort((left, right) => left.to - left.from - (right.to - right.from));
+  return candidates[0]?.snap;
 }
 
 function childNodes(node: SyntaxNodeRef | MarkdownNode): MarkdownNode[] {
@@ -559,7 +676,7 @@ function openLinkFromMouseEvent(event: MouseEvent, view: EditorView): boolean {
   return true;
 }
 
-function moveCursorOutsideInlineBoundary(event: MouseEvent, view: EditorView): boolean {
+function moveCursorOutsideHiddenBoundary(event: MouseEvent, view: EditorView): boolean {
   if (event.button !== 0 || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) {
     return false;
   }
@@ -569,7 +686,7 @@ function moveCursorOutsideInlineBoundary(event: MouseEvent, view: EditorView): b
     return false;
   }
 
-  const snapPosition = getInlineBoundarySnapPosition(view.state, pos);
+  const snapPosition = getHiddenBoundarySnapPosition(view.state, pos);
   if (snapPosition === undefined || snapPosition === pos) {
     return false;
   }
@@ -579,6 +696,10 @@ function moveCursorOutsideInlineBoundary(event: MouseEvent, view: EditorView): b
   view.focus();
   view.dispatch({ selection: { anchor: snapPosition } });
   return true;
+}
+
+function getHiddenBoundarySnapPosition(state: EditorState, pos: number): number | undefined {
+  return getInlineBoundarySnapPosition(state, pos) ?? getHeadingBoundarySnapPosition(state, pos);
 }
 
 function getInlineBoundarySnapPosition(state: EditorState, pos: number): number | undefined {

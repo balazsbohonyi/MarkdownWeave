@@ -13,7 +13,7 @@ export function isEditing(state: EditorState, from: number, to: number, hasVisib
       return editing;
     }
 
-    editing = range.from <= to && range.to >= from;
+    editing = range.from < to && range.to > from;
     return editing;
   });
 

@@ -64,6 +64,54 @@ Implication:
 
 HTML image rendering depends on asynchronous host responses and may update after the widget first mounts.
 
+### Post-testing fixes replace opaque code widgets with editable token decorations
+
+After manual Phase 3 testing, fenced code blocks were changed from opaque replacement widgets to a hybrid model: inactive blocks use Shiki-rendered HTML previews, while active blocks use editable CodeMirror source ranges with Shiki token decorations.
+
+Reason:
+
+Opaque widgets made selection, keyboard navigation, Tab insertion, and paste behavior unreliable inside code blocks.
+
+Implication:
+
+Code block source remains directly editable. Inactive code blocks keep the richer Shiki theme rendering from the original Phase 3 implementation; active code blocks reveal fences and keep syntax highlighting on the editable code text.
+
+### Host/webview document snapshots use normalized line endings
+
+The webview receives LF-normalized content snapshots and indentation metadata from the extension host. Host edits map normalized offsets back to VS Code document positions and reinsert text using the document's native EOL.
+
+Reason:
+
+CodeMirror normalizes document text to LF internally, while user files may use CRLF. Offset-based edits against raw VS Code document text can drift in CRLF files.
+
+Implication:
+
+Future webview edit logic should keep using normalized snapshots and host-side EOL restoration instead of mixing CM6 offsets with raw CRLF host text.
+
+### Async block widgets request CodeMirror remeasurement
+
+Widgets whose height can change after mounting now request a CodeMirror measurement pass after rendering or resolving external data.
+
+Reason:
+
+Manual testing showed cursor and click positions could drift after KaTeX, Mermaid, sanitized HTML fallbacks, HTML images, and table widgets changed their rendered height.
+
+Implication:
+
+Future async widgets should call `view.requestMeasure()` after DOM size changes.
+
+### Block widget roots avoid vertical margins
+
+Block widget root elements do not use vertical CSS margins. Spacing must be implemented with measured height-affecting styles, such as padding or explicit internal layout.
+
+Reason:
+
+CodeMirror does not include external margins in block widget height measurement. Vertical margins on widget roots make mouse hit-testing and keyboard vertical navigation resolve to lines below or above the intended source position.
+
+Implication:
+
+Future block widgets should keep root margins at `0` and request remeasurement after any asynchronous size change.
+
 ## Decisions
 
 ### Widget raw state is session-only
@@ -77,3 +125,181 @@ Fenced code blocks with language `mermaid` bypass Shiki and render through the l
 ### Highlighting and heavy renderers are lazy
 
 Code highlighting, KaTeX rendering, Mermaid rendering, and HTML image URI resolution are requested only when relevant syntax exists and, where applicable, when widgets enter the observed viewport overscan.
+
+### Frontmatter is excluded from normal markdown decorations
+
+When a document starts with YAML frontmatter, the opening and closing `---` markers are treated as frontmatter delimiters, not horizontal rules.
+
+### Optimistic heading styling is visual only
+
+While the cursor is on a line starting with `#` through `######`, MarkdownWeave applies heading-size styling before the required space exists. This does not change the markdown source and does not treat invalid heading syntax as a parsed heading.
+
+### Tables use toggle-only raw mode
+
+Tables open pipe-table source only through the table source toggle button and return to preview only through the same toggle. Cell-level rich editing remains out of scope for Phase 3.
+
+Table preview participates in the shared collapsed-block navigation rules instead of using table-specific cursor reveal behavior.
+
+### Collapsed block widgets use source-aware vertical navigation
+
+Preview block widgets expose their source ranges through `EditorView.atomicRanges` and share a custom ArrowUp/ArrowDown handler that moves by source lines while treating collapsed preview ranges as one visual stop.
+
+Reason:
+
+CodeMirror's default vertical movement is coordinate-based. When multiple source lines are replaced by one block widget, default ArrowUp/ArrowDown can skip unrelated visible content and jump to a distant line.
+
+Implication:
+
+Tables, inactive fenced code previews, Mermaid diagrams, display math previews, sanitized HTML blocks, HTML image blocks, and collapsed frontmatter should use the same vertical navigation behavior. Shift+ArrowUp/ArrowDown extends the source selection through the same collapsed-range logic. Custom vertical navigation must explicitly request `EditorView.scrollIntoView` so the viewport follows downward cursor movement just as it does for native CodeMirror movement. The editor also keeps CodeMirror's scroller as a constrained flex child and runs a measured selection-update fallback so the caret remains visible when the webview viewport clips the editor. Editor-level horizontal scrolling is disabled and reset during cursor navigation; individual widgets that truly need horizontal overflow must own it locally.
+
+### Code block previews wrap instead of scrolling horizontally
+
+Fenced code previews keep their Shiki highlighting but wrap long lines within the code block instead of creating horizontal scrollbars or widening the editor scroller.
+
+Reason:
+
+Code block horizontal overflow can shift the whole CodeMirror scroller horizontally, making the editor content appear to lose its left padding in narrow VS Code windows.
+
+Implication:
+
+Code block widgets should stay at `max-width: 100%` of their parent. Long code lines wrap visually in preview mode; the markdown source remains unchanged.
+
+Inactive code block previews reserve vertical room for the closing fence so switching to active source mode does not grow the block height just because the closing fence becomes visible. Mermaid previews are excluded from this height-stability rule because diagrams and source are intentionally different views.
+
+### Code blocks preserve source whitespace and stabilize active highlighting
+
+Inactive Shiki previews preserve source whitespace inside each rendered code line without preserving Shiki's generated formatting newlines between line spans. Active fenced code editing inserts literal tab characters on `Tab`, uses the document tab size for visual alignment, and keeps the most recent compatible Shiki token decorations while a new async highlight is pending.
+
+Reason:
+
+Shiki's formatted HTML contains newline text nodes between rendered line spans; preserving those parent-level newlines displayed empty rows between adjacent source lines. Active editing also changed the exact highlight cache key on every keystroke, causing the block to briefly drop to uncolored text until the next Shiki result arrived.
+
+Implication:
+
+Code blocks should treat source whitespace as canonical content, while renderer-generated whitespace remains layout-only. Active code highlighting may temporarily reuse mapped tokens from the previous highlight across unchanged prefix/suffix regions until Shiki returns fresh tokens for the edited code.
+
+### Fenced code blocks are keyboard-enterable source regions
+
+Inactive fenced code previews remain rendered when the cursor is merely above or below them. ArrowDown from the line above enters the source at the opening fence, ArrowUp from the line below enters the source at the closing fence, and movement inside the active block proceeds line by line through the opening fence, code body, and closing fence. Escape collapses an active fenced block by moving the cursor outside the fenced source.
+
+Reason:
+
+Opaque fenced code previews should behave like source ranges during keyboard navigation and selection, while still presenting Shiki previews when inactive.
+
+Implication:
+
+Selections intersecting the fenced source keep the raw editable form visible so source selection includes the opening and closing fences. Active fenced blocks use one preview-like themed container where the opening fence, language marker, body, and closing fence are visually part of the same code block.
+
+Fenced code previews are intentionally excluded from CodeMirror atomic ranges. The shared ArrowUp/ArrowDown handler still treats inactive fenced previews as collapsed visual blocks, but Shift-selection can enter their source one line at a time instead of expanding to the whole fenced source range.
+
+### Hidden source reveal snaps to marker boundaries
+
+Sanitized inline HTML tags and ATX heading markers follow the same raw-reveal boundary behavior as markdown emphasis and inline code markers: entering rendered content at the opening boundary snaps the cursor before the opening marker or tag, and entering at the closing boundary snaps after the closing marker or tag.
+
+Reason:
+
+Without boundary snapping, revealing raw source places the cursor after the opening marker or tag, which makes the cursor appear to move inside hidden syntax.
+
+Implication:
+
+Future inline decorations that hide source delimiters should preserve outer-boundary cursor positions when raw source is revealed.
+
+Keyboard source selection reveals hidden markdown delimiters immediately. Pointer-drag selection still waits until the drag finishes before broad raw reveal to avoid layout shifts while dragging. Non-empty source selection uses half-open overlap checks, so delimiters are revealed only when the selection actually includes their source range, not when the cursor merely touches a range boundary.
+
+### Display math supports single-line and multiline dollar blocks
+
+Display math detection supports both multiline `$$` blocks and single-line `$$ ... $$` formulas. Inline math remains conservative to avoid escaped dollars and currency-like values.
+
+### Mermaid labels use SVG text under strict sanitization
+
+Mermaid rendering uses SVG text labels instead of HTML labels so plain labels and emoji render without allowing Mermaid-generated HTML label content.
+
+### Mermaid previews use bounded intrinsic sizing and session-only resize
+
+Mermaid diagrams no longer expand to the full available editor width by default. The preview picks a bounded width from the rendered SVG aspect ratio, using narrower defaults for portrait diagrams and wider defaults for landscape diagrams. Users can drag a resize handle to adjust the preview width for the active session.
+
+Reason:
+
+Full-width Mermaid SVG scaling made portrait diagrams excessively large in maximized VS Code windows, while Markdown has no established source syntax equivalent to image `=WxH` sizing for Mermaid fences.
+
+Implication:
+
+Mermaid resize state is preview-only and session-only in Phase 3. It must not modify the fenced Mermaid source or introduce non-standard sizing comments. The desired session width is remembered while the rendered width remains visually clamped by the current parent width.
+
+Mermaid previews must not introduce local horizontal scrollbars or widen the editor. Default and user-resized widths are clamped to the available parent width, and oversized SVG content is scaled down inside the preview.
+
+When Mermaid source is active, it uses the same editable fenced-code treatment as other fenced code blocks: the opening fence, `mermaid` language marker, body, and closing fence remain visible in source form, without rendering a live diagram preview.
+
+Mermaid active source currently remains plain editable source instead of Shiki-highlighted source because the bundled Shiki language set does not include a Mermaid grammar.
+
+Mermaid, Markdown image, and HTML image resize handles appear on hover and during active drag only, so they hide again once the resize completes. Mermaid handles overlap the preview edge like image handles, but remain width-only to preserve diagram aspect ratio.
+
+Mermaid preview DOM is reused when unrelated edits only shift the diagram's source offsets. The widget updates its stored click target positions without remounting the rendered SVG.
+
+Reason:
+
+Offset-only redraws briefly showed the raw Mermaid source placeholder until the delayed renderer completed, making the block flicker between source text and preview during unrelated edits.
+
+Implication:
+
+Mermaid widgets should redraw only when the diagram content changes or when the renderer/theme changes, not just because edits elsewhere moved the fenced block.
+
+Mermaid previews must not show raw diagram source as a loading placeholder. Returning from active source mode should either reuse the cached rendered SVG immediately or show an empty preview surface while Mermaid renders.
+
+Mouse selection across Mermaid previews keeps the rendered diagram in preview mode and shows a source-selection outline instead of revealing raw source. This avoids the height changes that occur when a tall rendered chart collapses to shorter fenced source during pointer drag selection. Empty cursor navigation can still enter Mermaid source at the fence boundary, and Mermaid previews expose a hover-only source toggle button that places the cursor at the opening fence.
+
+Once Mermaid source mode is active, clicking and selecting inside the fenced source must behave like any other editable code block. The source remains active while the selection intersects the fenced Mermaid range, and clicking outside the source range returns the block to preview mode.
+
+Mermaid preview borders are hidden by default and shown on hover alongside the source toggle and resize handle.
+
+Mermaid render/cache identity includes the source range in addition to the diagram content hash. Identical Mermaid diagrams can appear multiple times in one document, so widget DOM reuse is allowed only for the same source instance, not merely the same diagram text.
+
+### Partial horizontal-rule markers stay raw while editing
+
+Single list markers such as `-` and partial setext markers such as `--` remain raw when the cursor is on that marker line. Once the syntax becomes an actual horizontal rule, the normal horizontal-rule preview applies.
+
+Reason:
+
+While typing `---`, CodeMirror's Markdown parser temporarily interprets `-` as a list item and can interpret `--` as a setext heading underline. Applying those previews mid-sequence causes indentation and heading styling flicker.
+
+Implication:
+
+Marker decorations should avoid presenting transient parser interpretations while the cursor is actively typing ambiguous horizontal-rule syntax.
+
+### Resized Markdown images are persisted as HTML image tags
+
+Markdown image syntax with Typora-style `=WxH` sizing remains supported for existing documents, but new Markdown image resize operations write a safe `<img src="..." alt="..." width="..." height="...">` tag.
+
+Reason:
+
+VS Code's built-in Markdown preview does not render `![alt](src =WxH)` as a sized image; it treats the size suffix as part of the URL. HTML image attributes preserve size while rendering in VS Code's built-in preview.
+
+Implication:
+
+Resizing a Markdown image can intentionally convert that image from Markdown image syntax to HTML image syntax. The source remains canonical, and MarkdownWeave continues to render both forms.
+
+### HTML image tags use image-style preview and resize
+
+Safe HTML `<img>` tags render through a dedicated image widget instead of generic inline HTML decoration. Clicking reveals the raw `<img>` tag and keeps a preview available while editing. Drag-resizing writes or updates `width` and `height` attributes on the `<img>` tag.
+
+Reason:
+
+HTML images should behave consistently with Markdown image previews while preserving the user's choice to use HTML image syntax.
+
+Implication:
+
+HTML image resizing is an intentional source edit. Unlike Mermaid resizing, it is persisted in the markdown source through standard HTML attributes.
+
+### Table previews show source selection with a rounded outline
+
+When a non-empty source selection intersects a collapsed table preview, the table widget draws a thicker outline using the editor selection color. Table previews use the same `6px` border radius as code blocks.
+
+Reason:
+
+Collapsed table widgets otherwise make it hard to see that the underlying table source is part of the current source selection.
+
+Implication:
+
+Table text remains non-selectable in preview mode; selection is still source selection, represented visually by the table preview outline.
+
+Table raw-mode toggles are inline overlay widgets attached to the end of the first table source line. They must not add a separate block below the raw table source, because that interferes with adding new rows after the table.

@@ -49,21 +49,21 @@
 
 ## Phase 3: Block Widgets & Advanced Rendering
 
-[Task Details](./phases/phase-03/plan.md)
+[Task Details](./phases/phase-03/plan.md) | [Decisions](./phases/phase-03/decisions.md)
 
-- [ ] P3-T1: Fenced code block widget shell (styled container, raw source on focus)
-- [ ] P3-T2: Shiki v3 setup on extension host (JS regex engine, on-demand lang loading)
-- [ ] P3-T3: Shiki highlighting pipeline (extension host renders HTML → `postMessage` → webview)
-- [ ] P3-T4: Shiki dual-theme output (light + dark tokens, auto-switch)
-- [ ] P3-T5: Lazy code block highlighting (IntersectionObserver for off-screen blocks)
-- [ ] P3-T6: Table rendering as HTML table widget (read-only)
-- [ ] P3-T7: Table raw-source toggle button
-- [ ] P3-T8: KaTeX setup (on-demand loading)
-- [ ] P3-T9: Inline math (`$...$`) decoration
-- [ ] P3-T10: Display math (`$$...$$`) block widget
-- [ ] P3-T11: Mermaid diagram block widget (on-demand, debounced re-render)
-- [ ] P3-T12: Frontmatter collapse/expand pill widget
-- [ ] P3-T13: Embedded HTML rendering (with sanitization)
+- [x] P3-T1: Fenced code block widget shell (styled container, raw source on focus)
+- [x] P3-T2: Shiki v4 setup on extension host (JS regex engine, curated lang loading)
+- [x] P3-T3: Shiki highlighting pipeline (extension host renders HTML → `postMessage` → webview)
+- [x] P3-T4: Shiki dual-theme output (light + dark tokens, auto-switch)
+- [x] P3-T5: Lazy code block highlighting (IntersectionObserver for off-screen blocks)
+- [x] P3-T6: Table rendering as HTML table widget (read-only)
+- [x] P3-T7: Table raw-source toggle button
+- [x] P3-T8: KaTeX setup (on-demand loading)
+- [x] P3-T9: Inline math (`$...$`) decoration
+- [x] P3-T10: Display math (`$$...$$`) block widget
+- [x] P3-T11: Mermaid diagram block widget (on-demand, debounced re-render)
+- [x] P3-T12: Frontmatter collapse/expand pill widget
+- [x] P3-T13: Embedded HTML rendering (with sanitization)
 
 ## Phase 4: Wiki Links & Link Validation
 

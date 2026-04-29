@@ -1,5 +1,6 @@
 import * as crypto from 'crypto';
 import * as vscode from 'vscode';
+import { highlight } from './shikiHighlighter';
 
 type WebviewReadyMessage = {
   type: 'ready';
@@ -31,11 +32,26 @@ type WebviewResolveImageUriMessage = {
   src: string;
 };
 
+type EditorIndentation = {
+  insertSpaces: boolean;
+  tabSize: number;
+};
+
+type WebviewHighlightCodeBlocksMessage = {
+  type: 'highlightCodeBlocks';
+  requests: Array<{
+    id: string;
+    code: string;
+    lang: string;
+  }>;
+};
+
 type WebviewMessage =
   | WebviewReadyMessage
   | WebviewEditMessage
   | WebviewOpenLinkMessage
-  | WebviewResolveImageUriMessage;
+  | WebviewResolveImageUriMessage
+  | WebviewHighlightCodeBlocksMessage;
 
 const DOCUMENT_SYNC_DEBOUNCE_MS = 200;
 
@@ -69,11 +85,14 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
     webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
 
     const postDocumentContent = (type: 'init' | 'update', source: 'extension' | 'initial'): void => {
+      const editorSettings = this.getEditorSettings(document);
       void webviewPanel.webview.postMessage({
         type,
-        content: document.getText(),
+        content: this.normalizeLineEndings(document.getText()),
         version: document.version,
-        source
+        source,
+        eol: editorSettings.eol,
+        indentation: editorSettings.indentation
       });
     };
 
@@ -90,20 +109,23 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
         return;
       }
 
-      const currentContent = document.getText();
+      const currentContent = this.normalizeLineEndings(document.getText());
       if (currentContent === message.after) {
         return;
       }
 
       const edit = new vscode.WorkspaceEdit();
       const replacement = this.getReplacement(currentContent, message.after);
-      const range = new vscode.Range(document.positionAt(replacement.from), document.positionAt(replacement.to));
+      const range = new vscode.Range(
+        this.positionAtNormalizedOffset(currentContent, replacement.from),
+        this.positionAtNormalizedOffset(currentContent, replacement.to)
+      );
 
       if (currentContent !== message.before) {
         console.warn('MarkdownWeave applying edit snapshot after host/webview drift.');
       }
 
-      edit.replace(document.uri, range, replacement.insert);
+      edit.replace(document.uri, range, this.toDocumentLineEndings(replacement.insert, document.eol));
 
       suppressNextSync = true;
       syncSuppressionGeneration += 1;
@@ -131,6 +153,27 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
       });
     };
 
+    const highlightCodeBlocks = async (message: WebviewHighlightCodeBlocksMessage): Promise<void> => {
+      if (!Array.isArray(message.requests) || message.requests.length === 0) {
+        return;
+      }
+
+      const results = await Promise.all(
+        message.requests.map(async (request) => {
+          const highlighted = await highlight(request.code, request.lang);
+          return {
+            id: request.id,
+            ...highlighted
+          };
+        })
+      );
+
+      void webviewPanel.webview.postMessage({
+        type: 'highlightedCodeBlocks',
+        results
+      });
+    };
+
     disposables.push(
       webviewPanel.webview.onDidReceiveMessage((message: WebviewMessage) => {
         if (message.type === 'ready') {
@@ -151,6 +194,11 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
 
         if (message.type === 'resolveImageUri') {
           void resolveImageUri(message);
+          return;
+        }
+
+        if (message.type === 'highlightCodeBlocks') {
+          void highlightCodeBlocks(message);
         }
       }),
       vscode.workspace.onDidChangeTextDocument((event) => {
@@ -190,13 +238,19 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
     const nonce = crypto.randomBytes(16).toString('base64');
     const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview.js'));
     const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview.css'));
+    const katexModuleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'dist', 'katex', 'katex.mjs'));
+    const katexStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'dist', 'katex', 'katex.min.css'));
+    const mermaidModuleUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'dist', 'mermaid', 'mermaid.esm.min.mjs')
+    );
 
     return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https: data:; style-src ${webview.cspSource}; font-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https: data:; style-src ${webview.cspSource} 'nonce-${nonce}'; font-src ${webview.cspSource}; script-src ${webview.cspSource} 'nonce-${nonce}';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="markdownweave-style-nonce" content="${nonce}">
   <link href="${styleUri}" rel="stylesheet">
   <title>MarkdownWeave</title>
 </head>
@@ -205,6 +259,13 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
     <div id="status">Markdown Weave loading...</div>
     <div id="editor" aria-label="Markdown source"></div>
   </main>
+  <script nonce="${nonce}">
+    window.markdownWeaveAssets = {
+      katexModule: "${katexModuleUri}",
+      katexCss: "${katexStyleUri}",
+      mermaidModule: "${mermaidModuleUri}"
+    };
+  </script>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
@@ -216,6 +277,37 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
     } catch {
       void vscode.window.showWarningMessage(`Markdown Weave could not open link: ${url}`);
     }
+  }
+
+  private getEditorSettings(document: vscode.TextDocument): { eol: '\n' | '\r\n'; indentation: EditorIndentation } {
+    const configuration = vscode.workspace.getConfiguration('editor', document.uri);
+    const tabSizeSetting = configuration.get<number | string>('tabSize', 4);
+    const insertSpacesSetting = configuration.get<boolean | string>('insertSpaces', true);
+    const tabSize = typeof tabSizeSetting === 'number' && Number.isFinite(tabSizeSetting) ? tabSizeSetting : 4;
+
+    return {
+      eol: document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n',
+      indentation: {
+        insertSpaces: typeof insertSpacesSetting === 'boolean' ? insertSpacesSetting : true,
+        tabSize: Math.max(1, Math.min(8, Math.floor(tabSize)))
+      }
+    };
+  }
+
+  private normalizeLineEndings(value: string): string {
+    return value.replace(/\r\n?/g, '\n');
+  }
+
+  private toDocumentLineEndings(value: string, eol: vscode.EndOfLine): string {
+    return eol === vscode.EndOfLine.CRLF ? value.replace(/\n/g, '\r\n') : value;
+  }
+
+  private positionAtNormalizedOffset(normalizedContent: string, offset: number): vscode.Position {
+    const prefix = normalizedContent.slice(0, offset);
+    const line = prefix.split('\n').length - 1;
+    const lastBreak = prefix.lastIndexOf('\n');
+    const character = lastBreak < 0 ? offset : offset - lastBreak - 1;
+    return new vscode.Position(line, character);
   }
 
   private async getImageWebviewUri(

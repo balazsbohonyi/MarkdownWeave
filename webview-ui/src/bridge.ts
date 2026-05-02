@@ -8,6 +8,8 @@ export type HostInitMessage = {
   content: string;
   version: number;
   source: 'initial';
+  eol: '\n' | '\r\n';
+  indentation: EditorIndentation;
 };
 
 export type HostUpdateMessage = {
@@ -15,6 +17,8 @@ export type HostUpdateMessage = {
   content: string;
   version: number;
   source: 'extension';
+  eol: '\n' | '\r\n';
+  indentation: EditorIndentation;
 };
 
 export type HostImageUriMessage = {
@@ -24,7 +28,31 @@ export type HostImageUriMessage = {
   uri?: string;
 };
 
-export type HostMessage = HostInitMessage | HostUpdateMessage | HostImageUriMessage;
+export type HighlightedCodeBlock = {
+  id: string;
+  html: string;
+  css: string;
+  lang: string;
+  tokens: HighlightedCodeToken[];
+};
+
+export type HighlightedCodeToken = {
+  from: number;
+  to: number;
+  className: string;
+};
+
+export type EditorIndentation = {
+  insertSpaces: boolean;
+  tabSize: number;
+};
+
+export type HostHighlightedCodeBlocksMessage = {
+  type: 'highlightedCodeBlocks';
+  results: HighlightedCodeBlock[];
+};
+
+export type HostMessage = HostInitMessage | HostUpdateMessage | HostImageUriMessage | HostHighlightedCodeBlocksMessage;
 
 export type WebviewEditChange = {
   from: number;
@@ -51,6 +79,9 @@ const imageUriHandlers = new Map<number, PendingImageUriRequest>();
 const imageUriCache = new Map<string, string | undefined>();
 const pendingImageUriRequests = new Map<string, PendingImageUriRequest>();
 let nextImageRequestId = 1;
+const codeHighlightCallbacks = new Map<string, Array<(result: HighlightedCodeBlock) => void>>();
+const pendingCodeHighlightRequests = new Map<string, { id: string; code: string; lang: string }>();
+let codeHighlightBatchTimer: number | undefined;
 
 export function postReady(): void {
   vscode.postMessage({ type: 'ready' });
@@ -87,6 +118,30 @@ export function resolveImageUri(src: string, callback: (uri: string | undefined)
   vscode.postMessage({ type: 'resolveImageUri', requestId, src });
 }
 
+export function requestCodeHighlight(
+  request: { id: string; code: string; lang: string },
+  callback: (result: HighlightedCodeBlock) => void
+): void {
+  const callbacks = codeHighlightCallbacks.get(request.id) ?? [];
+  callbacks.push(callback);
+  codeHighlightCallbacks.set(request.id, callbacks);
+  pendingCodeHighlightRequests.set(request.id, request);
+
+  if (codeHighlightBatchTimer) {
+    clearTimeout(codeHighlightBatchTimer);
+  }
+
+  codeHighlightBatchTimer = window.setTimeout(() => {
+    codeHighlightBatchTimer = undefined;
+    const requests = Array.from(pendingCodeHighlightRequests.values());
+    pendingCodeHighlightRequests.clear();
+
+    if (requests.length > 0) {
+      vscode.postMessage({ type: 'highlightCodeBlocks', requests });
+    }
+  }, 50);
+}
+
 export function getPersistedState(): PersistedState | undefined {
   return vscode.getState();
 }
@@ -96,14 +151,23 @@ export function setPersistedState(state: PersistedState): void {
 }
 
 export function handleBridgeMessage(message: HostMessage): boolean {
-  if (message.type !== 'imageUri') {
-    return false;
+  if (message.type === 'imageUri') {
+    const request = imageUriHandlers.get(message.requestId);
+    imageUriHandlers.delete(message.requestId);
+    pendingImageUriRequests.delete(message.src);
+    imageUriCache.set(message.src, message.uri);
+    request?.callbacks.forEach((callback) => callback(message.uri));
+    return true;
   }
 
-  const request = imageUriHandlers.get(message.requestId);
-  imageUriHandlers.delete(message.requestId);
-  pendingImageUriRequests.delete(message.src);
-  imageUriCache.set(message.src, message.uri);
-  request?.callbacks.forEach((callback) => callback(message.uri));
-  return true;
+  if (message.type === 'highlightedCodeBlocks') {
+    message.results.forEach((result) => {
+      const callbacks = codeHighlightCallbacks.get(result.id);
+      codeHighlightCallbacks.delete(result.id);
+      callbacks?.forEach((callback) => callback(result));
+    });
+    return true;
+  }
+
+  return false;
 }

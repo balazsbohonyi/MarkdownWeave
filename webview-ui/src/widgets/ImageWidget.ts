@@ -1,5 +1,6 @@
 import { EditorView, WidgetType } from '@codemirror/view';
 import { resolveImageUri } from '../bridge';
+import { hideImageResizeHandlesUntilPointerLeaves } from './imageResizeHandle';
 
 export type ImageWidgetOptions = {
   alt: string;
@@ -13,7 +14,6 @@ export type ImageWidgetOptions = {
 };
 
 const remoteUriPattern = /^(?:https?:|data:|vscode-resource:|vscode-webview-resource:)/i;
-let selectedImageKey: string | undefined;
 
 export class ImageWidget extends WidgetType {
   public constructor(private readonly options: ImageWidgetOptions) {
@@ -40,10 +40,6 @@ export class ImageWidget extends WidgetType {
     wrapper.contentEditable = 'false';
     wrapper.dataset.imageFrom = String(this.options.from);
     wrapper.dataset.imageTo = String(this.options.to);
-
-    if (this.options.block && selectedImageKey === getImageKey(this.options)) {
-      wrapper.classList.add('mw-image-widget-selected');
-    }
 
     const image = document.createElement('img');
     image.className = 'mw-image-preview';
@@ -93,6 +89,7 @@ export class ImageWidget extends WidgetType {
     handle.addEventListener('mousedown', (event) => {
       event.preventDefault();
       event.stopPropagation();
+      wrapper.classList.add('mw-image-widget-resizing');
 
       const startX = event.clientX;
       const startY = event.clientY;
@@ -109,6 +106,8 @@ export class ImageWidget extends WidgetType {
       const onUp = (): void => {
         window.removeEventListener('mousemove', onMove);
         window.removeEventListener('mouseup', onUp);
+        wrapper.classList.remove('mw-image-widget-resizing');
+        hideImageResizeHandlesUntilPointerLeaves();
 
         const nextWidth = Math.max(24, image.width);
         const nextHeight = Math.max(24, image.height);
@@ -117,7 +116,7 @@ export class ImageWidget extends WidgetType {
           changes: {
             from: this.options.from,
             to: this.options.to,
-            insert: `![${this.options.alt}](${this.options.src} =${nextWidth}x${nextHeight})`
+            insert: toSizedImageHtml(this.options, nextWidth, nextHeight)
           },
           selection: { anchor: this.options.from }
         });
@@ -135,9 +134,6 @@ export class ImageWidget extends WidgetType {
 
       mouseEvent.preventDefault();
       mouseEvent.stopPropagation();
-      selectedImageKey = getImageKey(this.options);
-      clearSelectedImageWidgets();
-      wrapper.classList.add('mw-image-widget-selected');
       view.focus();
       view.dispatch({
         selection: { anchor: this.options.from }
@@ -166,12 +162,14 @@ function getImageName(src: string): string {
   }
 }
 
-function getImageKey(options: ImageWidgetOptions): string {
-  return `${options.from}:${options.to}:${options.raw}`;
+function toSizedImageHtml(options: ImageWidgetOptions, width: number, height: number): string {
+  return `<img src="${escapeHtmlAttribute(options.src)}" alt="${escapeHtmlAttribute(options.alt)}" width="${width}" height="${height}">`;
 }
 
-function clearSelectedImageWidgets(): void {
-  document
-    .querySelectorAll('.mw-image-widget-selected')
-    .forEach((widget) => widget.classList.remove('mw-image-widget-selected'));
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }

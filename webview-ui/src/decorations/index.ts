@@ -1,5 +1,5 @@
-import type { Range } from '@codemirror/state';
-import { EditorState, StateEffect } from '@codemirror/state';
+import type { Extension, Range, Transaction, TransactionSpec } from '@codemirror/state';
+import { EditorSelection, EditorState, StateEffect } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import { Decoration, DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import type { SyntaxNode, SyntaxNodeRef } from '@lezer/common';
@@ -8,7 +8,16 @@ import { HrWidget } from '../widgets/HrWidget';
 import { ImageWidget } from '../widgets/ImageWidget';
 import { ListMarkerWidget } from '../widgets/ListMarkerWidget';
 import { postOpenLink } from '../bridge';
-import { isEditing } from './selectionUtils';
+import { collectBlockHiddenBoundaries } from './blockWidgets';
+import {
+  expandSelectionToHiddenBoundaries,
+  findFrontmatterRange,
+  getHiddenBoundarySnapPosition,
+  rangeOverlaps,
+  type HiddenBoundary,
+  type RawRange
+} from './ranges';
+import { getSelectionRevealState, isEditing, selectionRevealField, setSelectionRevealState } from './selectionUtils';
 
 type DecorationHandler = (node: SyntaxNodeRef, context: DecorationContext) => Range<Decoration>[];
 
@@ -17,6 +26,7 @@ type DecorationContext = {
   doc: string;
   hasFocus: boolean;
   listMarkers: Map<number, string>;
+  frontmatterRange: RawRange | undefined;
 };
 
 type MarkdownNode = {
@@ -29,15 +39,18 @@ type MarkdownNode = {
 const handlers = new Map<string, DecorationHandler[]>();
 const headingPattern = /^ATXHeading([1-6])$/;
 const unorderedListMarkers = ['\u2022', '\u25E6', '\u25AA'];
-const SELECTION_DECORATION_DELAY_MS = 140;
 const selectionSettled = StateEffect.define<void>();
+const POINTER_SELECTION_DRAG_SLOP = 2;
 let pointerSelectionInProgress = false;
+let keyboardSelectionInProgress = false;
+let pendingPointerId: number | undefined;
+let pendingPointerStart: { x: number; y: number } | undefined;
+let removePointerArmListeners: (() => void) | undefined;
 let removePointerFinishListeners: (() => void) | undefined;
 
 export const markdownDecorations = ViewPlugin.fromClass(
   class {
     public decorations: DecorationSet;
-    private selectionTimer: number | undefined;
 
     public constructor(view: EditorView) {
       this.decorations = buildDecorations(view);
@@ -50,7 +63,6 @@ export const markdownDecorations = ViewPlugin.fromClass(
       }
 
       if (update.docChanged || update.viewportChanged || update.focusChanged) {
-        this.clearSelectionTimer();
         this.decorations = buildDecorations(update.view);
         return;
       }
@@ -59,49 +71,57 @@ export const markdownDecorations = ViewPlugin.fromClass(
         return;
       }
 
-      this.clearSelectionTimer();
-
       if (update.state.selection.ranges.some((range) => !range.empty)) {
-        if (pointerSelectionInProgress) {
-          return;
-        }
-
-        this.selectionTimer = window.setTimeout(() => {
-          this.selectionTimer = undefined;
-          update.view.dispatch({ effects: selectionSettled.of() });
-        }, SELECTION_DECORATION_DELAY_MS);
+        this.decorations = buildDecorations(update.view);
         return;
       }
 
       this.decorations = buildDecorations(update.view);
     }
-
-    public destroy(): void {
-      this.clearSelectionTimer();
-    }
-
-    private clearSelectionTimer(): void {
-      if (this.selectionTimer) {
-        clearTimeout(this.selectionTimer);
-        this.selectionTimer = undefined;
-      }
-    }
   },
   {
     decorations: (plugin) => plugin.decorations,
     eventHandlers: {
+      pointerdown(event, view) {
+        if (event.button === 0) {
+          armPointerSelection(view, event);
+        }
+      },
       mousedown(event, view) {
         if (event.button !== 0) {
           return;
         }
 
-        startPointerSelection(view);
+        if (!('PointerEvent' in window)) {
+          startPointerSelection(view);
+        }
+      },
+      keydown(event, view) {
+        if (isSelectionExtendingKey(event)) {
+          startKeyboardSelection(view);
+        }
+      },
+      keyup(event, view) {
+        if (keyboardSelectionInProgress && shouldCommitKeyboardSelection(event)) {
+          finishKeyboardSelection(view);
+        }
       },
       drop(_event, view) {
         finishPointerSelection(view);
       },
       dragend(_event, view) {
         finishPointerSelection(view);
+      },
+      pointerup(_event, view) {
+        clearPointerSelectionArm(view);
+        schedulePointerSelectionFinish(view);
+      },
+      pointercancel(_event, view) {
+        clearPointerSelectionArm(view);
+        schedulePointerSelectionFinish(view);
+      },
+      blur(_event, view) {
+        finishKeyboardSelection(view);
       }
     }
   }
@@ -109,9 +129,40 @@ export const markdownDecorations = ViewPlugin.fromClass(
 
 export const linkClickExtension = EditorView.domEventHandlers({
   mousedown(event, view) {
-    return openLinkFromMouseEvent(event, view) || moveCursorOutsideInlineBoundary(event, view);
+    return openLinkFromMouseEvent(event, view);
+  },
+  click(event, view) {
+    return moveCursorOutsideHiddenBoundary(event, view);
   }
 });
+
+export const markdownBoundarySnapping: Extension = [
+  selectionRevealField,
+  EditorState.transactionFilter.of(adjustHiddenBoundaryTransaction)
+];
+
+export function commitMarkdownSelection(view: EditorView): boolean {
+  const selection = view.state.selection;
+  if (selection.ranges.every((range) => range.empty)) {
+    if (getSelectionRevealState(view.state) !== 'none') {
+      view.dispatch({ effects: setSelectionRevealState.of('none') });
+    }
+    return false;
+  }
+
+  const expandedSelection = expandSelectionToHiddenBoundaries(
+    selection,
+    collectAllHiddenBoundaries(view.state)
+  );
+  const effects = [setSelectionRevealState.of('committed'), selectionSettled.of()];
+
+  view.dispatch(
+    expandedSelection
+      ? { selection: expandedSelection, effects }
+      : { effects }
+  );
+  return true;
+}
 
 function registerDecoration(nodeName: string, handler: DecorationHandler): void {
   const existing = handlers.get(nodeName) ?? [];
@@ -125,7 +176,8 @@ function buildDecorations(view: EditorView): DecorationSet {
     state: view.state,
     doc: view.state.doc.toString(),
     hasFocus: view.hasFocus,
-    listMarkers: buildListMarkers(view.state)
+    listMarkers: buildListMarkers(view.state),
+    frontmatterRange: findFrontmatterRange(view.state)
   };
 
   for (const visibleRange of view.visibleRanges) {
@@ -133,6 +185,10 @@ function buildDecorations(view: EditorView): DecorationSet {
       from: visibleRange.from,
       to: visibleRange.to,
       enter(node) {
+        if (context.frontmatterRange && node.from >= context.frontmatterRange.from && node.to <= context.frontmatterRange.to) {
+          return false;
+        }
+
         const nodeHandlers = handlers.get(node.name);
         if (!nodeHandlers) {
           return;
@@ -147,16 +203,101 @@ function buildDecorations(view: EditorView): DecorationSet {
     ranges.push(...buildImageDecorations(visibleRange.from, visibleRange.to, context));
   }
 
+  ranges.push(...buildOptimisticHeadingDecorations(context));
+
   return Decoration.set(ranges, true);
 }
 
+function armPointerSelection(view: EditorView, event: PointerEvent): void {
+  clearPointerSelectionArm(view);
+  pendingPointerId = event.pointerId;
+  pendingPointerStart = { x: event.clientX, y: event.clientY };
+
+  const maybeStart = (moveEvent: PointerEvent): void => {
+    if (moveEvent.pointerId !== event.pointerId) {
+      return;
+    }
+
+    if ((moveEvent.buttons & 1) === 0) {
+      clearPointerSelectionArm(view);
+      return;
+    }
+
+    if (!hasMovedPastDragSlop(moveEvent)) {
+      return;
+    }
+
+    removePointerArmListeners?.();
+    startPointerSelection(view);
+  };
+  const cancel = (): void => {
+    clearPointerSelectionArm(view);
+  };
+
+  view.dom.addEventListener('pointermove', maybeStart);
+  window.addEventListener('pointermove', maybeStart);
+  view.dom.addEventListener('pointerup', cancel, { once: true });
+  view.dom.addEventListener('pointercancel', cancel, { once: true });
+  window.addEventListener('pointerup', cancel, { once: true });
+  window.addEventListener('pointercancel', cancel, { once: true });
+
+  removePointerArmListeners = () => {
+    view.dom.removeEventListener('pointermove', maybeStart);
+    window.removeEventListener('pointermove', maybeStart);
+    view.dom.removeEventListener('pointerup', cancel);
+    view.dom.removeEventListener('pointercancel', cancel);
+    window.removeEventListener('pointerup', cancel);
+    window.removeEventListener('pointercancel', cancel);
+    removePointerArmListeners = undefined;
+  };
+}
+
+function hasMovedPastDragSlop(event: PointerEvent): boolean {
+  if (!pendingPointerStart) {
+    return false;
+  }
+
+  return (
+    Math.abs(event.clientX - pendingPointerStart.x) > POINTER_SELECTION_DRAG_SLOP ||
+    Math.abs(event.clientY - pendingPointerStart.y) > POINTER_SELECTION_DRAG_SLOP
+  );
+}
+
+function clearPointerSelectionArm(_view: EditorView): void {
+  removePointerArmListeners?.();
+  pendingPointerId = undefined;
+  pendingPointerStart = undefined;
+}
+
 function startPointerSelection(view: EditorView): void {
+  if (pointerSelectionInProgress) {
+    return;
+  }
+
+  removePointerArmListeners?.();
   removePointerFinishListeners?.();
   pointerSelectionInProgress = true;
+  view.dispatch({ effects: setSelectionRevealState.of('pending') });
 
   const finish = (): void => {
-    finishPointerSelection(view);
+    schedulePointerSelectionFinish(view);
   };
+  const pointerId = pendingPointerId;
+  pendingPointerId = undefined;
+  pendingPointerStart = undefined;
+
+  if (pointerId !== undefined) {
+    try {
+      view.dom.setPointerCapture(pointerId);
+    } catch {
+      // Pointer capture is best effort; window listeners below are the fallback.
+    }
+
+    view.dom.addEventListener('pointerup', finish, { once: true });
+    view.dom.addEventListener('pointercancel', finish, { once: true });
+    window.addEventListener('pointerup', finish, { once: true });
+    window.addEventListener('pointercancel', finish, { once: true });
+  }
 
   window.addEventListener('mouseup', finish, { once: true });
   window.addEventListener('drop', finish, { once: true });
@@ -168,8 +309,25 @@ function startPointerSelection(view: EditorView): void {
     window.removeEventListener('drop', finish);
     window.removeEventListener('dragend', finish);
     window.removeEventListener('blur', finish);
+    window.removeEventListener('pointerup', finish);
+    window.removeEventListener('pointercancel', finish);
+    view.dom.removeEventListener('pointerup', finish);
+    view.dom.removeEventListener('pointercancel', finish);
+    if (pointerId !== undefined) {
+      try {
+        if (view.dom.hasPointerCapture(pointerId)) {
+          view.dom.releasePointerCapture(pointerId);
+        }
+      } catch {
+        // The pointer may already be released by the browser.
+      }
+    }
     removePointerFinishListeners = undefined;
   };
+}
+
+function schedulePointerSelectionFinish(view: EditorView): void {
+  window.setTimeout(() => finishPointerSelection(view), 0);
 }
 
 function finishPointerSelection(view: EditorView): void {
@@ -181,8 +339,57 @@ function finishPointerSelection(view: EditorView): void {
   removePointerFinishListeners?.();
 
   if (view.state.selection.ranges.some((range) => !range.empty)) {
-    view.dispatch({ effects: selectionSettled.of() });
+    commitMarkdownSelection(view);
+    return;
   }
+
+  if (getSelectionRevealState(view.state) !== 'none') {
+    view.dispatch({ effects: setSelectionRevealState.of('none') });
+  }
+}
+
+function startKeyboardSelection(view: EditorView): void {
+  if (keyboardSelectionInProgress) {
+    return;
+  }
+
+  keyboardSelectionInProgress = true;
+  view.dispatch({ effects: setSelectionRevealState.of('pending') });
+}
+
+function finishKeyboardSelection(view: EditorView): void {
+  if (!keyboardSelectionInProgress) {
+    return;
+  }
+
+  keyboardSelectionInProgress = false;
+  if (view.state.selection.ranges.some((range) => !range.empty)) {
+    commitMarkdownSelection(view);
+    return;
+  }
+
+  view.dispatch({ effects: setSelectionRevealState.of('none') });
+}
+
+function isSelectionExtendingKey(event: KeyboardEvent): boolean {
+  if (!event.shiftKey || event.altKey) {
+    return false;
+  }
+
+  return (
+    event.key === 'ArrowLeft' ||
+    event.key === 'ArrowRight' ||
+    event.key === 'ArrowUp' ||
+    event.key === 'ArrowDown' ||
+    event.key === 'Home' ||
+    event.key === 'End' ||
+    event.key === 'PageUp' ||
+    event.key === 'PageDown'
+  );
+}
+
+function shouldCommitKeyboardSelection(event: KeyboardEvent): boolean {
+  return event.key === 'Shift' || !event.shiftKey;
 }
 
 for (let level = 1; level <= 6; level += 1) {
@@ -207,6 +414,10 @@ function headingDecoration(node: SyntaxNodeRef, context: DecorationContext): Ran
   const lineText = context.doc.slice(node.from, node.to);
   const level = atxMatch ? Number(atxMatch[1]) : node.name === 'SetextHeading1' ? 1 : 2;
   const editing = isEditing(context.state, node.from, node.to, context.hasFocus);
+
+  if (!atxMatch && isEditingPartialSetextMarker(context, node)) {
+    return [];
+  }
 
   addHeadingLineDecoration(ranges, context, node.from, level);
 
@@ -371,6 +582,10 @@ function listItemDecoration(node: SyntaxNodeRef, context: DecorationContext): Ra
   const ranges: Range<Decoration>[] = [];
   const markerTo = context.doc.charAt(marker.to) === ' ' ? marker.to + 1 : marker.to;
   const line = context.state.doc.lineAt(node.from);
+  if (isEditingSingleListMarkerLine(context, line.from, line.to)) {
+    return [];
+  }
+
   const indent = Math.min(8, Math.floor((line.text.match(/^\s*/)?.[0].length ?? 0) / 2));
   const task = children.find((child) => child.name === 'Task');
   const taskMarker = task ? childNodes(task).find((child) => child.name === 'TaskMarker') : undefined;
@@ -421,6 +636,9 @@ function buildImageDecorations(from: number, to: number, context: DecorationCont
   while ((match = imagePattern.exec(visibleText)) !== null) {
     const imageFrom = from + match.index;
     const imageTo = imageFrom + match[0].length;
+    if (context.frontmatterRange && rangeOverlaps(imageFrom, imageTo, [context.frontmatterRange])) {
+      continue;
+    }
 
     const src = match[2].trim();
     if (src.length === 0) {
@@ -437,7 +655,7 @@ function buildImageDecorations(from: number, to: number, context: DecorationCont
       height: match[4] ? Number(match[4]) : undefined
     });
 
-    if (isEditing(context.state, imageFrom, imageTo, context.hasFocus)) {
+    if (isEditing(context.state, imageFrom, imageTo, context.hasFocus, true)) {
       ranges.push(
         Decoration.widget({
           side: 1,
@@ -464,6 +682,253 @@ function buildImageDecorations(from: number, to: number, context: DecorationCont
   }
 
   return ranges;
+}
+
+function buildOptimisticHeadingDecorations(context: DecorationContext): Range<Decoration>[] {
+  if (!context.hasFocus || !context.state.selection.main.empty) {
+    return [];
+  }
+
+  const line = context.state.doc.lineAt(context.state.selection.main.head);
+  if (context.frontmatterRange && rangeOverlaps(line.from, line.to, [context.frontmatterRange])) {
+    return [];
+  }
+
+  const match = /^(#{1,6})(?=[^\s#]|$)/.exec(line.text);
+  if (!match) {
+    return [];
+  }
+
+  const level = match[1].length;
+  return [Decoration.line({ class: `mw-heading-line mw-h${level}-line` }).range(line.from)];
+}
+
+function isEditingSingleListMarkerLine(context: DecorationContext, from: number, to: number): boolean {
+  if (!context.hasFocus || !context.state.selection.main.empty) {
+    return false;
+  }
+
+  const selection = context.state.selection.main.head;
+  if (selection < from || selection > to) {
+    return false;
+  }
+
+  return /^[ \t]*[-+*][ \t]*$/.test(context.state.doc.sliceString(from, to));
+}
+
+function isEditingPartialSetextMarker(context: DecorationContext, node: SyntaxNodeRef): boolean {
+  if (!context.hasFocus || !context.state.selection.main.empty) {
+    return false;
+  }
+
+  const marker = childNodes(node).find((child) => child.name === 'HeaderMark');
+  if (!marker) {
+    return false;
+  }
+
+  const selection = context.state.selection.main.head;
+  if (selection < marker.from || selection > marker.to) {
+    return false;
+  }
+
+  const markerText = context.doc.slice(marker.from, marker.to).trim();
+  return /^-{1,2}$/.test(markerText);
+}
+
+function adjustHiddenBoundaryTransaction(transaction: Transaction): TransactionSpec | readonly TransactionSpec[] {
+  if (!transaction.selection || transaction.docChanged) {
+    return transaction;
+  }
+
+  const boundaries = collectAllHiddenBoundaries(transaction.state);
+  if (transaction.newSelection.ranges.some((range) => !range.empty)) {
+    return transaction;
+  }
+
+  if (transaction.newSelection.main.goalColumn === undefined) {
+    return transaction;
+  }
+
+  const selection = transaction.newSelection.main;
+  const snapPosition = getHiddenBoundarySnapPosition(boundaries, selection.head);
+  if (snapPosition === undefined || snapPosition === selection.head) {
+    return transaction;
+  }
+
+  return [
+    transaction,
+    {
+      selection: EditorSelection.cursor(snapPosition, selection.assoc, undefined, selection.goalColumn),
+      scrollIntoView: transaction.scrollIntoView
+    }
+  ];
+}
+
+function collectAllHiddenBoundaries(state: EditorState): HiddenBoundary[] {
+  return [
+    ...collectMarkdownHiddenBoundaries(state),
+    ...collectBlockHiddenBoundaries(state)
+  ].sort((left, right) => left.from - right.from || left.to - right.to);
+}
+
+function collectMarkdownHiddenBoundaries(state: EditorState): HiddenBoundary[] {
+  const boundaries: HiddenBoundary[] = [];
+  const doc = state.doc.toString();
+  const frontmatterRange = findFrontmatterRange(state);
+
+  syntaxTree(state).iterate({
+    enter(node) {
+      if (frontmatterRange && node.from >= frontmatterRange.from && node.to <= frontmatterRange.to) {
+        return false;
+      }
+
+      if (headingPattern.test(node.name)) {
+        addAtxHeadingBoundary(boundaries, state, node);
+        return true;
+      }
+
+      if (node.name === 'SetextHeading1' || node.name === 'SetextHeading2') {
+        addSetextHeadingBoundary(boundaries, node);
+        return true;
+      }
+
+      if (
+        node.name === 'StrongEmphasis' ||
+        node.name === 'Emphasis' ||
+        node.name === 'Strikethrough' ||
+        node.name === 'InlineCode'
+      ) {
+        addInlineMarkerBoundary(boundaries, node);
+        return true;
+      }
+
+      if (node.name === 'Link' || node.name === 'Autolink') {
+        addLinkBoundary(boundaries, node);
+        return true;
+      }
+
+      return true;
+    }
+  });
+
+  addMarkdownImageBoundaries(boundaries, doc, frontmatterRange);
+  return boundaries.sort((left, right) => left.from - right.from || left.to - right.to);
+}
+
+function addAtxHeadingBoundary(boundaries: HiddenBoundary[], state: EditorState, node: SyntaxNodeRef): void {
+  const lineText = state.sliceDoc(node.from, node.to);
+  const prefix = lineText.match(/^#{1,6}[ \t]*/)?.[0] ?? '';
+  if (!prefix) {
+    return;
+  }
+
+  const suffix = lineText.match(/[ \t]+#{1,}[ \t]*$/)?.[0] ?? '';
+  addHiddenBoundary(boundaries, {
+    from: node.from,
+    to: node.to,
+    contentFrom: node.from + prefix.length,
+    contentTo: Math.max(node.from + prefix.length, node.to - suffix.length)
+  });
+}
+
+function addSetextHeadingBoundary(boundaries: HiddenBoundary[], node: SyntaxNodeRef): void {
+  const mark = childNodes(node).find((child) => child.name === 'HeaderMark');
+  if (!mark) {
+    return;
+  }
+
+  addHiddenBoundary(boundaries, {
+    from: node.from,
+    to: mark.to,
+    contentFrom: node.from,
+    contentTo: Math.max(node.from, mark.from - 1)
+  });
+}
+
+function addInlineMarkerBoundary(boundaries: HiddenBoundary[], node: SyntaxNodeRef): void {
+  const markers = getInlineMarkerNodes(node);
+  if (markers.length < 2) {
+    return;
+  }
+
+  const firstMarker = markers[0];
+  const lastMarker = markers[markers.length - 1];
+  addHiddenBoundary(boundaries, {
+    from: node.from,
+    to: node.to,
+    contentFrom: firstMarker.to,
+    contentTo: lastMarker.from
+  });
+}
+
+function addLinkBoundary(boundaries: HiddenBoundary[], node: SyntaxNodeRef): void {
+  const children = childNodes(node);
+  const linkMarks = children.filter((child) => child.name === 'LinkMark');
+
+  if (node.name === 'Autolink') {
+    const url = children.find((child) => child.name === 'URL');
+    if (!url || linkMarks.length < 2) {
+      return;
+    }
+
+    addHiddenBoundary(boundaries, {
+      from: node.from,
+      to: node.to,
+      contentFrom: url.from,
+      contentTo: url.to
+    });
+    return;
+  }
+
+  if (linkMarks.length < 2) {
+    return;
+  }
+
+  addHiddenBoundary(boundaries, {
+    from: node.from,
+    to: node.to,
+    contentFrom: linkMarks[0].to,
+    contentTo: linkMarks[1].from
+  });
+}
+
+function addMarkdownImageBoundaries(
+  boundaries: HiddenBoundary[],
+  doc: string,
+  frontmatterRange: RawRange | undefined
+): void {
+  const imagePattern = /!\[([^\]\n]*)\]\(([^)\n]*?)(?:\s+=(\d+)x(\d+))?\)/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = imagePattern.exec(doc)) !== null) {
+    const from = match.index;
+    const to = from + match[0].length;
+    if (frontmatterRange && rangeOverlaps(from, to, [frontmatterRange])) {
+      continue;
+    }
+
+    addHiddenBoundary(boundaries, {
+      from,
+      to,
+      contentFrom: from,
+      contentTo: to
+    });
+  }
+}
+
+function addHiddenBoundary(boundaries: HiddenBoundary[], boundary: HiddenBoundary): void {
+  const contentFrom = Math.max(boundary.from, Math.min(boundary.to, boundary.contentFrom));
+  const contentTo = Math.max(boundary.from, Math.min(boundary.to, boundary.contentTo));
+  if (boundary.to <= boundary.from || contentTo < contentFrom || (boundary.from === contentFrom && contentTo === boundary.to)) {
+    return;
+  }
+
+  boundaries.push({
+    from: boundary.from,
+    to: boundary.to,
+    contentFrom,
+    contentTo
+  });
 }
 
 function childNodes(node: SyntaxNodeRef | MarkdownNode): MarkdownNode[] {
@@ -559,8 +1024,12 @@ function openLinkFromMouseEvent(event: MouseEvent, view: EditorView): boolean {
   return true;
 }
 
-function moveCursorOutsideInlineBoundary(event: MouseEvent, view: EditorView): boolean {
+function moveCursorOutsideHiddenBoundary(event: MouseEvent, view: EditorView): boolean {
   if (event.button !== 0 || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) {
+    return false;
+  }
+
+  if (!view.state.selection.main.empty) {
     return false;
   }
 
@@ -569,7 +1038,7 @@ function moveCursorOutsideInlineBoundary(event: MouseEvent, view: EditorView): b
     return false;
   }
 
-  const snapPosition = getInlineBoundarySnapPosition(view.state, pos);
+  const snapPosition = getHiddenBoundarySnapPosition(collectAllHiddenBoundaries(view.state), pos);
   if (snapPosition === undefined || snapPosition === pos) {
     return false;
   }
@@ -579,47 +1048,6 @@ function moveCursorOutsideInlineBoundary(event: MouseEvent, view: EditorView): b
   view.focus();
   view.dispatch({ selection: { anchor: snapPosition } });
   return true;
-}
-
-function getInlineBoundarySnapPosition(state: EditorState, pos: number): number | undefined {
-  const candidates: Array<{ from: number; to: number; snap: number }> = [];
-
-  syntaxTree(state).iterate({
-    from: Math.max(0, pos - 1),
-    to: Math.min(state.doc.length, pos + 1),
-    enter(node) {
-      if (
-        node.name !== 'StrongEmphasis' &&
-        node.name !== 'Emphasis' &&
-        node.name !== 'Strikethrough' &&
-        node.name !== 'InlineCode'
-      ) {
-        return;
-      }
-
-      const markers = getInlineMarkerNodes(node);
-      if (markers.length < 2) {
-        return;
-      }
-
-      const firstMarker = markers[0];
-      const lastMarker = markers[markers.length - 1];
-      let snap: number | undefined;
-
-      if (pos === firstMarker.to) {
-        snap = node.from;
-      } else if (pos === lastMarker.from) {
-        snap = node.to;
-      }
-
-      if (snap !== undefined) {
-        candidates.push({ from: node.from, to: node.to, snap });
-      }
-    }
-  });
-
-  candidates.sort((left, right) => left.to - left.from - (right.to - right.from));
-  return candidates[0]?.snap;
 }
 
 function getInlineMarkerNodes(node: SyntaxNodeRef): MarkdownNode[] {

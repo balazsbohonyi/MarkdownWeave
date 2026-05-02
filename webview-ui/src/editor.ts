@@ -2,20 +2,26 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirro
 import { markdown, markdownKeymap } from '@codemirror/lang-markdown';
 import { syntaxTree } from '@codemirror/language';
 import { Annotation, Compartment, EditorSelection, EditorState } from '@codemirror/state';
-import { drawSelection, dropCursor, EditorView, keymap, type ViewUpdate } from '@codemirror/view';
+import { drawSelection, dropCursor, EditorView, keymap, ViewPlugin, type ViewUpdate } from '@codemirror/view';
+import type { SyntaxNode } from '@lezer/common';
 import { GFM } from '@lezer/markdown';
-import { postEdit, setPersistedState, type PersistedState, type WebviewEditChange } from './bridge';
-import { linkClickExtension, markdownDecorations } from './decorations';
+import { postEdit, setPersistedState, type EditorIndentation, type PersistedState, type WebviewEditChange } from './bridge';
+import { markdownBlockWidgets } from './decorations/blockWidgets';
+import { commitMarkdownSelection, linkClickExtension, markdownBoundarySnapping, markdownDecorations } from './decorations';
 
 const STATE_DEBOUNCE_MS = 200;
+const CURSOR_SCROLL_MARGIN = 32;
+const cursorViewportMeasureKey = {};
 
 const externalUpdate = Annotation.define<boolean>();
 const themeCompartment = new Compartment();
-const tabSize = 4;
+const tabSizeCompartment = new Compartment();
+const defaultTabSize = 4;
 
 export type MarkdownEditor = {
   view: EditorView;
   setContent(content: string): void;
+  setIndentation(indentation: EditorIndentation): void;
   restoreState(state: PersistedState | undefined): void;
   saveState(): void;
   selectAll(): void;
@@ -23,8 +29,10 @@ export type MarkdownEditor = {
   destroy(): void;
 };
 
-export function createMarkdownEditor(parent: HTMLElement, initialContent: string): MarkdownEditor {
+export function createMarkdownEditor(parent: HTMLElement, initialContent: string, initialIndentation: EditorIndentation): MarkdownEditor {
   let stateTimer: number | undefined;
+  let indentation = normalizeIndentation(initialIndentation);
+  parent.style.setProperty('--mw-tab-size', String(indentation.tabSize));
 
   const view = new EditorView({
     parent,
@@ -33,7 +41,9 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
       extensions: [
         markdown({ extensions: [GFM] }),
         history(),
+        tabSizeCompartment.of(EditorState.tabSize.of(indentation.tabSize)),
         keymap.of([
+          { key: 'Tab', run: indentCodeBlock },
           { key: 'Tab', run: indentMarkdownListItem },
           { key: 'Shift-Tab', run: outdentMarkdownListItem },
           indentWithTab,
@@ -45,6 +55,11 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
         dropCursor(),
         themeCompartment.of(markdownWeaveTheme(currentThemeKind())),
         EditorView.lineWrapping,
+        EditorView.domEventHandlers({
+          paste(event, eventView) {
+            return pastePlainTextInCodeBlock(event, eventView);
+          }
+        }),
         EditorView.updateListener.of((update) => {
           forwardDocumentChanges(update);
 
@@ -52,6 +67,9 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
             queueStateSave();
           }
         }),
+        cursorViewportFollow,
+        markdownBoundarySnapping,
+        markdownBlockWidgets,
         markdownDecorations,
         linkClickExtension
       ]
@@ -108,13 +126,14 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
   }
 
   function restoreState(state: PersistedState | undefined): void {
-    if (!state) {
-      return;
-    }
-
     requestAnimationFrame(() => {
-      const cursorOffset = Math.min(state.cursorOffset, view.state.doc.length);
       view.focus();
+
+      if (!state) {
+        return;
+      }
+
+      const cursorOffset = Math.min(state.cursorOffset, view.state.doc.length);
       view.dispatch({
         selection: EditorSelection.cursor(cursorOffset),
         scrollIntoView: true,
@@ -145,6 +164,13 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
   return {
     view,
     setContent,
+    setIndentation(nextIndentation: EditorIndentation): void {
+      indentation = normalizeIndentation(nextIndentation);
+      parent.style.setProperty('--mw-tab-size', String(indentation.tabSize));
+      view.dispatch({
+        effects: tabSizeCompartment.reconfigure(EditorState.tabSize.of(indentation.tabSize))
+      });
+    },
     restoreState,
     saveState,
     selectAll(): void {
@@ -153,8 +179,10 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
         selection: EditorSelection.single(0, view.state.doc.length),
         scrollIntoView: true
       });
+      commitMarkdownSelection(view);
     },
     getSelectedText(): string {
+      commitMarkdownSelection(view);
       return view.state.selection.ranges
         .filter((range) => !range.empty)
         .map((range) => view.state.sliceDoc(range.from, range.to))
@@ -169,6 +197,31 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
       view.destroy();
     }
   };
+
+  function indentCodeBlock(eventView: EditorView): boolean {
+    if (!isSelectionInsideFencedCode(eventView.state)) {
+      return false;
+    }
+
+    eventView.dispatch(eventView.state.replaceSelection('\t'));
+    return true;
+  }
+
+  function pastePlainTextInCodeBlock(event: ClipboardEvent, eventView: EditorView): boolean {
+    if (!isSelectionInsideFencedCode(eventView.state)) {
+      return false;
+    }
+
+    const text = event.clipboardData?.getData('text/plain');
+    if (!text) {
+      return false;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    eventView.dispatch(eventView.state.replaceSelection(normalizeLineEndings(text)));
+    return true;
+  }
 }
 
 type ParsedListLine = {
@@ -183,6 +236,36 @@ type ParsedListLine = {
   orderedDelimiter: string;
   orderedNumber: number;
 };
+
+function isSelectionInsideFencedCode(state: EditorState): boolean {
+  return state.selection.ranges.every((range) => {
+    const position = range.empty ? range.from : range.from;
+    let node: SyntaxNode | null = syntaxTree(state).resolveInner(position, -1);
+
+    while (node) {
+      if (node.name === 'FencedCode' && position >= node.from && position <= node.to) {
+        return true;
+      }
+
+      node = node.parent;
+    }
+
+    return false;
+  });
+}
+
+function normalizeIndentation(indentation: EditorIndentation): EditorIndentation {
+  const tabSize = Number.isFinite(indentation.tabSize) ? Math.max(1, Math.min(8, Math.floor(indentation.tabSize))) : 4;
+
+  return {
+    insertSpaces: indentation.insertSpaces,
+    tabSize
+  };
+}
+
+function normalizeLineEndings(text: string): string {
+  return text.replace(/\r\n?/g, '\n');
+}
 
 function indentMarkdownListItem(view: EditorView): boolean {
   const selection = view.state.selection.main;
@@ -328,13 +411,86 @@ function getIndentColumn(indent: string): number {
 
   for (const character of indent) {
     if (character === '\t') {
-      column += tabSize - (column % tabSize);
+      column += defaultTabSize - (column % defaultTabSize);
     } else {
       column += 1;
     }
   }
 
   return column;
+}
+
+type CursorVisibilityMeasure = {
+  deltaY: number;
+  scrollTop: number;
+  maxScrollTop: number;
+};
+
+const cursorViewportFollow = ViewPlugin.fromClass(
+  class {
+    public update(update: ViewUpdate): void {
+      if (!update.selectionSet || !update.view.hasFocus) {
+        return;
+      }
+
+      const head = update.state.selection.main.head;
+      update.view.requestMeasure({
+        key: cursorViewportMeasureKey,
+        read: (view) => measureCursorVisibility(view, head),
+        write: (measure, view) => scrollCursorIntoVisibleViewport(view, measure)
+      });
+    }
+  }
+);
+
+function measureCursorVisibility(view: EditorView, head: number): CursorVisibilityMeasure {
+  const cursor = view.coordsAtPos(head);
+  if (!cursor) {
+    return { deltaY: 0, scrollTop: 0, maxScrollTop: 0 };
+  }
+
+  const scrollRect = view.scrollDOM.getBoundingClientRect();
+  const viewportTop = window.visualViewport?.offsetTop ?? 0;
+  const viewportBottom = viewportTop + (window.visualViewport?.height ?? window.innerHeight);
+  const visibleTop = Math.max(scrollRect.top, viewportTop);
+  const visibleBottom = Math.min(scrollRect.bottom, viewportBottom);
+  let deltaY = 0;
+
+  if (cursor.bottom > visibleBottom - CURSOR_SCROLL_MARGIN) {
+    deltaY = cursor.bottom - visibleBottom + CURSOR_SCROLL_MARGIN;
+  } else if (cursor.top < visibleTop + CURSOR_SCROLL_MARGIN) {
+    deltaY = cursor.top - visibleTop - CURSOR_SCROLL_MARGIN;
+  }
+
+  return {
+    deltaY,
+    scrollTop: view.scrollDOM.scrollTop,
+    maxScrollTop: Math.max(0, view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight)
+  };
+}
+
+function scrollCursorIntoVisibleViewport(view: EditorView, measure: CursorVisibilityMeasure): void {
+  if (view.scrollDOM.scrollLeft !== 0) {
+    view.scrollDOM.scrollLeft = 0;
+  }
+
+  if (measure.deltaY === 0) {
+    return;
+  }
+
+  const editorDelta =
+    measure.deltaY > 0
+      ? Math.min(measure.deltaY, measure.maxScrollTop - measure.scrollTop)
+      : Math.max(measure.deltaY, -measure.scrollTop);
+
+  if (editorDelta !== 0) {
+    view.scrollDOM.scrollTop = measure.scrollTop + editorDelta;
+  }
+
+  const remainingDelta = measure.deltaY - editorDelta;
+  if (remainingDelta !== 0) {
+    window.scrollBy(0, remainingDelta);
+  }
 }
 
 function getReplacement(previous: string, next: string): { from: number; to: number; insert: string } {
@@ -384,6 +540,12 @@ function markdownWeaveTheme(themeKind: 'light' | 'dark' | 'high-contrast') {
   return EditorView.theme({
     '&': {
       height: '100%',
+      width: '100%',
+      flex: '1 1 auto',
+      display: 'flex',
+      flexDirection: 'column',
+      minHeight: '0',
+      minWidth: '0',
       backgroundColor: 'var(--vscode-editor-background)',
       color: 'var(--vscode-editor-foreground)',
       fontFamily: 'var(--vscode-editor-font-family, var(--vscode-font-family))',
@@ -391,13 +553,25 @@ function markdownWeaveTheme(themeKind: 'light' | 'dark' | 'high-contrast') {
       lineHeight: '1.6'
     },
     '.cm-scroller': {
+      flex: '1 1 auto',
+      minHeight: '0',
+      justifyContent: 'center',
+      overflowX: 'hidden',
+      overflowY: 'auto',
       fontFamily: 'inherit',
       lineHeight: 'inherit'
     },
     '.cm-content': {
+      boxSizing: 'border-box',
+      flex: '0 1 min(100%, 1024px)',
+      width: 'min(100%, 1024px)',
+      maxWidth: '1024px',
+      minWidth: '0',
+      margin: '0 auto',
       padding: '16px',
       caretColor: 'var(--vscode-editorCursor-foreground)',
-      minHeight: '100%'
+      minHeight: '100%',
+      overflowWrap: 'anywhere'
     },
     '&.cm-focused, .cm-content, .cm-content:focus, .cm-scroller, .cm-scroller:focus': {
       outline: 'none !important'

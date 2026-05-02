@@ -42,7 +42,7 @@ The extension targets developers editing documentation, READMEs, and wikis, as w
 - **FR-6:** Only the block/inline element under the current caret SHALL be in source mode at any given time. Moving the caret away SHALL re-render the element.
 - **FR-7:** The editor SHALL NOT modify, normalize, or reformat the markdown source on save or at any other time.
 - **FR-8:** All edits SHALL flow through `workspace.applyEdit()` to integrate with VS Code's undo/redo stack.
-- **FR-9:** Fenced code blocks SHALL be syntax-highlighted using Shiki v3 with the JS regex engine, running on the extension host.
+- **FR-9:** Fenced code blocks SHALL be syntax-highlighted using Shiki v4 with the JS regex engine, running on the extension host.
 - **FR-10:** Rendered links SHALL be followable via Ctrl+Click and editable via regular click.
 - **FR-11:** Rendered checkboxes SHALL be clickable to toggle state.
 - **FR-12:** Tables SHALL render as read-only HTML tables with a toggle for raw source view. Cell-level editing deferred to v1.1.
@@ -92,7 +92,7 @@ The extension targets developers editing documentation, READMEs, and wikis, as w
 | `@codemirror/view`, `@codemirror/state` | Editor core | Webview |
 | `@codemirror/lang-markdown` | Lezer markdown parser | Webview |
 | `@codemirror/commands`, `@codemirror/history` | Keybindings, undo/redo | Webview |
-| `shiki` (v3+) | Syntax highlighting (JS regex engine) | Extension host |
+| `shiki` (v4+) | Syntax highlighting (JS regex engine) | Extension host |
 | `remark`, `remark-parse`, `remark-gfm`, `remark-frontmatter`, `unified` | AST analysis | Extension host |
 | `katex` | Math rendering | Webview (lazy) |
 | `mermaid` | Diagram rendering | Webview (lazy) |
@@ -114,7 +114,7 @@ markdownweave/
 │   ├── extension.ts               # Activation, command + provider registration
 │   ├── markdownWeaveEditor.ts      # CustomTextEditorProvider
 │   ├── outlineProvider.ts          # TreeView for doc outline sidebar
-│   ├── shikiHighlighter.ts         # Shiki v3 setup (Node side)
+│   ├── shikiHighlighter.ts         # Shiki v4 setup (Node side)
 │   ├── remarkAnalyzer.ts           # remark/unified AST analysis
 │   └── wikiLinkResolver.ts         # File existence checks for [[links]]
 ├── webview-ui/

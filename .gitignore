@@ -24,4 +24,4 @@ yarn-error.log*
 
 # Custom
 .idea
-ai-docs/.temp
+.temp

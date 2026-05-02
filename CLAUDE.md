@@ -74,7 +74,7 @@ Communication between them goes exclusively through `postMessage`. The webview c
 
 | Decision | Resolution | Why |
 |---|---|---|
-| Image resize syntax | Non-standard `=WxH` suffix: `![alt](src =300x200)` | Typora-compatible convention |
+| Image resize syntax | Legacy `=WxH` suffixes are supported; new Markdown image resizes persist as safe HTML `<img width height>` tags | VS Code's built-in Markdown preview renders HTML image dimensions but not Typora-style size suffixes |
 | MDX support | **Dropped** — `.md` and `.markdown` only | Scope reduction for v1 |
 | Math rendering library | **KaTeX** (not MathJax) | Faster, smaller bundle |
 | Table editing in v1 | Raw-source-toggle only | Cell-level editing deferred to v1.1 |
@@ -97,6 +97,14 @@ Communication between them goes exclusively through `postMessage`. The webview c
 
 **The markdown source file is the canonical document.** Never reformat, normalize, or round-trip through an intermediate representation. The WYSIWYG effect is achieved purely through CodeMirror 6 decorations on the source text.
 
+### Hidden Syntax Boundary Reveal
+
+When hidden syntax is revealed, the cursor must snap to the outside boundary of the source marker or tag, not inside it. For example, revealing `<mark>text</mark>` from the left should place the cursor before `<mark>`, revealing it from the right should place the cursor after `</mark>`, and entering an ATX heading from visual column zero should place the cursor before the leading `#` markers. Keep this behavior consistent for headings, markdown emphasis/code markers, and sanitized inline HTML tags.
+
+### Block Widget Rules
+
+Block widget root elements must not use vertical CSS margins. CodeMirror does not include external margins in block-widget height measurement, so use padding or internal layout and call `view.requestMeasure()` after asynchronous render or size changes. Preview widgets that represent source ranges, such as tables and Mermaid diagrams, should select/copy the canonical markdown source rather than rendered DOM text.
+
 ### Marking Tasks Complete
 
 In `ai-docs/tasks.md`, toggle the checkbox:
@@ -107,6 +115,10 @@ In `ai-docs/tasks.md`, toggle the checkbox:
 ```
 
 Only mark `[x]` when the "Done when" criterion from the phase plan is satisfied.
+
+### Staged Change Handling
+
+When the worktree already has staged changes, do not stage newly made changes unless the user explicitly asks for staging in that turn. Leave recent edits unstaged so the user can compare new work against the existing staged set.
 
 ### Commit Conventions
 

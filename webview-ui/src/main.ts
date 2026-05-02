@@ -30,13 +30,14 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
 
   if (message.type === 'init') {
     editorMount.textContent = '';
-    editor = createMarkdownEditor(editorMount, message.content);
+    editor = createMarkdownEditor(editorMount, message.content, message.indentation);
     editor.restoreState(getPersistedState());
     setStatus(`Document loaded (${message.content.length} characters)`);
     return;
   }
 
   if (message.type === 'update') {
+    editor?.setIndentation(message.indentation);
     editor?.setContent(message.content);
     setStatus(`Document updated (${message.content.length} characters)`);
   }

@@ -16,17 +16,17 @@ Implication:
 
 Code highlighting requests return sanitized Shiki HTML plus generated CSS. Unknown languages fall back to plaintext instead of dynamic arbitrary grammar imports.
 
-### Block widgets preserve Phase 2 reveal semantics
+### Block widgets preserve focus-gated reveal semantics
 
-Block widgets use the shared focus-gated reveal rules from Phase 2: broad non-empty selection reveal, delayed reveal during pointer selection, and preview styling in raw mode where practical.
+Block widgets use shared focus-gated reveal rules from Phase 2, with Phase 3's two-phase selection model layered on top. Empty cursor positions reveal editable source when the cursor enters a source range. Hidden inline markers and height-sensitive previews stay stable while selection is pending and reveal raw source only after the selection is committed. Source-editable ranges can reveal raw while a non-empty source selection intersects them, so selection can operate on canonical source instead of opaque widgets.
 
 Reason:
 
-Phase 2 established these semantics to avoid layout jumps and accidental raw reveal while the webview is blurred.
+Phase 2 established focus-gated reveal semantics to avoid accidental raw reveal while the webview is blurred. Manual testing showed live non-empty selection reveal caused visible selection jumps when hidden markdown markers appeared during selection. Later source-selection testing showed that fenced code and image source regions need a narrower exception so selection can operate on their canonical source instead of an opaque widget.
 
 Implication:
 
-New block widgets should use the shared reveal helpers and session state rather than independent cursor checks.
+New block widgets should use the shared reveal helpers and selection reveal state rather than independent cursor checks. Preview mode should remain stable during active mouse or keyboard selection unless the range is intentionally source-editable during selection.
 
 ### Math scanning is conservative
 
@@ -142,7 +142,7 @@ Table preview participates in the shared collapsed-block navigation rules instea
 
 ### Collapsed block widgets use source-aware vertical navigation
 
-Preview block widgets expose their source ranges through `EditorView.atomicRanges` and share a custom ArrowUp/ArrowDown handler that moves by source lines while treating collapsed preview ranges as one visual stop.
+Collapsed preview ranges share a custom ArrowUp/ArrowDown handler that moves by source lines while treating each collapsed preview range as one visual stop. Most collapsed widgets also expose their source ranges through `EditorView.atomicRanges`; inactive fenced code previews are intentionally excluded from atomic ranges so Shift-selection can enter their source one line at a time.
 
 Reason:
 
@@ -188,9 +188,9 @@ Opaque fenced code previews should behave like source ranges during keyboard nav
 
 Implication:
 
-Selections intersecting the fenced source keep the raw editable form visible so source selection includes the opening and closing fences. Active fenced blocks use one preview-like themed container where the opening fence, language marker, body, and closing fence are visually part of the same code block.
+Non-Mermaid fenced code blocks reveal source when the cursor or a non-empty source selection intersects that specific fenced source range. Global pointer selection enters pending state only after the pointer moves past the drag threshold, so simple document clicks remain normal caret placement. Pending selection state alone must not reveal every code block in the document. Active fenced blocks use one preview-like themed container where the opening fence, language marker, body, and closing fence are visually part of the same code block.
 
-Fenced code previews are intentionally excluded from CodeMirror atomic ranges. The shared ArrowUp/ArrowDown handler still treats inactive fenced previews as collapsed visual blocks, but Shift-selection can enter their source one line at a time instead of expanding to the whole fenced source range.
+Direct drag-selection inside an inactive code preview is intentionally not supported. A first click reveals the fenced source, and selection inside the code block uses normal source selection after the source is active.
 
 ### Hidden source reveal snaps to marker boundaries
 
@@ -204,7 +204,13 @@ Implication:
 
 Future inline decorations that hide source delimiters should preserve outer-boundary cursor positions when raw source is revealed.
 
-Keyboard source selection reveals hidden markdown delimiters immediately. Pointer-drag selection still waits until the drag finishes before broad raw reveal to avoid layout shifts while dragging. Non-empty source selection uses half-open overlap checks, so delimiters are revealed only when the selection actually includes their source range, not when the cursor merely touches a range boundary.
+Non-empty selections use a two-phase model for hidden inline markers and collapsed previews whose rendered height should remain stable. While the user is actively selecting with the mouse or keyboard, MarkdownWeave keeps those previews stable and does not reveal hidden markdown markers. When the selection is committed, raw markdown is revealed and selection endpoints expand outward to hidden source boundaries when an endpoint lands exactly at a visible content boundary.
+
+Source-editable ranges that need real character and line selection can opt into raw visibility while a selection is active. Non-Mermaid fenced code blocks, Markdown image source, and HTML image source use this path when a selection reaches their source range. Display math and generic sanitized HTML blocks stay on the deferred reveal path: they remain preview widgets during active selection and reveal raw markdown only when the selection is committed. Mermaid previews remain the exception: mouse selection across an inactive Mermaid diagram keeps the rendered chart visible and uses the preview selection outline; once Mermaid source mode is active, source selection behaves like any other fenced code block.
+
+Selection commit points are mouse release for pointer selection, relevant key release for keyboard selection, copy, blur, and programmatic select-all. Copy commits before reading selected text so the clipboard receives the expanded raw markdown source.
+
+Selection expansion is direction-aware: it only moves an endpoint outward when the selected range crosses into visible content from that boundary. Selecting hidden source markers from outside the rendered content must not snap the endpoint back to the opposite boundary. Simple mouse clicks still use boundary snapping for cursor placement.
 
 ### Display math supports single-line and multiline dollar blocks
 
@@ -233,16 +239,6 @@ When Mermaid source is active, it uses the same editable fenced-code treatment a
 Mermaid active source currently remains plain editable source instead of Shiki-highlighted source because the bundled Shiki language set does not include a Mermaid grammar.
 
 Mermaid, Markdown image, and HTML image resize handles appear on hover and during active drag only, so they hide again once the resize completes. Mermaid handles overlap the preview edge like image handles, but remain width-only to preserve diagram aspect ratio.
-
-Mermaid preview DOM is reused when unrelated edits only shift the diagram's source offsets. The widget updates its stored click target positions without remounting the rendered SVG.
-
-Reason:
-
-Offset-only redraws briefly showed the raw Mermaid source placeholder until the delayed renderer completed, making the block flicker between source text and preview during unrelated edits.
-
-Implication:
-
-Mermaid widgets should redraw only when the diagram content changes or when the renderer/theme changes, not just because edits elsewhere moved the fenced block.
 
 Mermaid previews must not show raw diagram source as a loading placeholder. Returning from active source mode should either reuse the cached rendered SVG immediately or show an empty preview surface while Mermaid renders.
 
@@ -303,3 +299,15 @@ Implication:
 Table text remains non-selectable in preview mode; selection is still source selection, represented visually by the table preview outline.
 
 Table raw-mode toggles are inline overlay widgets attached to the end of the first table source line. They must not add a separate block below the raw table source, because that interferes with adding new rows after the table.
+
+### Markdown content uses a centered readable column
+
+MarkdownWeave caps the whole CodeMirror content surface at `1024px` and centers it horizontally inside the webview tab. The cap includes CodeMirror's existing `16px` content padding, while the webview shell keeps its outer `20px 28px` padding (`20px` top/bottom, `28px` left/right). Below `1024px`, the editor fills the available width.
+
+Reason:
+
+This matches Obsidian-style readable document layout without changing markdown source or adding a setting ahead of the planned configuration phases.
+
+Implication:
+
+The CodeMirror scroller remains full-width so the vertical scrollbar stays at the tab edge. Rendered preview blocks and revealed raw source share the same centered column. Blocks must not exceed the column: long text can break, tables use fixed layout with wrapped cells, and oversized images or diagrams are visually clamped without rewriting source dimensions on load.

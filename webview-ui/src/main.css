@@ -30,9 +30,30 @@ body {
 }
 
 #editor {
+  --mw-content-max-width: 1024px;
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
+}
+
+#editor > .cm-editor {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+#editor .cm-content {
+  box-sizing: border-box;
+  flex: 0 1 min(100%, var(--mw-content-max-width)) !important;
+  width: min(100%, var(--mw-content-max-width)) !important;
+  max-width: var(--mw-content-max-width) !important;
+  min-width: 0 !important;
+  margin-right: auto !important;
+  margin-left: auto !important;
+}
+
+#editor .cm-scroller {
+  justify-content: center !important;
 }
 
 #editor:focus,
@@ -47,6 +68,9 @@ body {
 
 .cm-line {
   min-height: 1.6em;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .cm-cursor,
@@ -300,32 +324,35 @@ body.mw-image-resize-handle-hidden-after-resize .mw-image-widget:hover > .mw-ima
 
 .mw-codeblock {
   overflow: hidden;
-  border: 1px solid var(--vscode-editorWidget-border, transparent);
   border-radius: 6px;
   background: var(--vscode-textCodeBlock-background);
+  box-shadow: inset 0 0 0 1px var(--vscode-editorWidget-border, transparent);
 }
 
 .mw-codeblock-header {
   display: flex;
-  min-height: 1.9em;
+  min-height: 1.55em;
   align-items: center;
   justify-content: flex-end;
   box-sizing: border-box;
   width: 100%;
   margin: 0;
-  padding: 0 10px;
+  padding: 0 15px;
   border: 1px solid var(--vscode-editorWidget-border, transparent);
   border-bottom: 0;
   border-radius: 6px 6px 0 0;
   background: var(--vscode-textCodeBlock-background);
   color: var(--vscode-descriptionForeground);
-  font-size: 0.82em;
+  font-size: 0.92em;
+  line-height: 1.55;
   user-select: none;
 }
 
 .mw-codeblock-language {
   overflow: hidden;
   max-width: 18em;
+  font-size: 0.89em;
+  line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -334,7 +361,7 @@ body.mw-image-resize-handle-hidden-after-resize .mw-image-widget:hover > .mw-ima
   width: auto;
   margin: 0;
   border: 0;
-  border-bottom: 1px solid var(--vscode-editorWidget-border, transparent);
+  border-bottom: 0;
   border-radius: 0;
 }
 
@@ -346,7 +373,7 @@ body.mw-image-resize-handle-hidden-after-resize .mw-image-widget:hover > .mw-ima
   min-width: 0;
   overflow-x: hidden;
   margin: 0;
-  padding: 12px 14px calc(8px + 1.55em);
+  padding: 12px 15px 8px;
   background: var(--vscode-textCodeBlock-background);
   color: var(--vscode-editor-foreground);
   font-family: var(--vscode-editor-font-family, monospace);
@@ -354,6 +381,13 @@ body.mw-image-resize-handle-hidden-after-resize .mw-image-widget:hover > .mw-ima
   line-height: 1.55;
   overflow-wrap: anywhere;
   tab-size: var(--mw-tab-size, 4);
+}
+
+.mw-codeblock-content pre::after,
+.mw-codeblock-content .shiki::after {
+  display: block;
+  height: 1.55em;
+  content: '';
 }
 
 .mw-codeblock-content pre:not(.shiki) {
@@ -372,6 +406,7 @@ body.mw-image-resize-handle-hidden-after-resize .mw-image-widget:hover > .mw-ima
 
 .cm-line.mw-code-line {
   box-sizing: border-box;
+  min-height: 1.55em;
   background: var(--vscode-textCodeBlock-background);
   color: var(--vscode-editor-foreground);
   font-family: var(--vscode-editor-font-family, monospace);
@@ -388,30 +423,48 @@ body.mw-image-resize-handle-hidden-after-resize .mw-image-widget:hover > .mw-ima
 }
 
 .cm-line.mw-code-line-active {
-  padding-right: 14px;
-  padding-left: 14px;
-  border-right: 1px solid var(--vscode-editorWidget-border, transparent);
-  border-left: 1px solid var(--vscode-editorWidget-border, transparent);
+  padding-right: 15px;
+  padding-left: 15px;
+  box-shadow:
+    inset 1px 0 0 var(--vscode-editorWidget-border, transparent),
+    inset -1px 0 0 var(--vscode-editorWidget-border, transparent);
 }
 
 .cm-line.mw-code-block-start {
-  padding-top: 8px;
-  border-top: 1px solid var(--vscode-editorWidget-border, transparent);
   border-radius: 6px 6px 0 0;
+  box-shadow:
+    inset 0 1px 0 var(--vscode-editorWidget-border, transparent),
+    inset 1px 0 0 var(--vscode-editorWidget-border, transparent),
+    inset -1px 0 0 var(--vscode-editorWidget-border, transparent);
 }
 
 .cm-line.mw-code-block-end {
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--vscode-editorWidget-border, transparent);
   border-radius: 0 0 6px 6px;
+  box-shadow:
+    inset 0 -1px 0 var(--vscode-editorWidget-border, transparent),
+    inset 1px 0 0 var(--vscode-editorWidget-border, transparent),
+    inset -1px 0 0 var(--vscode-editorWidget-border, transparent);
 }
 
 .cm-line.mw-code-block-start.mw-code-block-end {
   border-radius: 6px;
+  box-shadow:
+    inset 0 1px 0 var(--vscode-editorWidget-border, transparent),
+    inset 0 -1px 0 var(--vscode-editorWidget-border, transparent),
+    inset 1px 0 0 var(--vscode-editorWidget-border, transparent),
+    inset -1px 0 0 var(--vscode-editorWidget-border, transparent);
 }
 
 .cm-line.mw-code-fence-line {
   color: var(--vscode-descriptionForeground);
+}
+
+.cm-line.mw-code-body-start {
+  padding-top: 12px;
+}
+
+.cm-line.mw-code-body-end {
+  padding-bottom: 8px;
 }
 
 .mw-code-fence-marker {
@@ -456,7 +509,7 @@ body.vscode-high-contrast .mw-codeblock-content .shiki {
 
 .mw-table-widget {
   position: relative;
-  overflow-x: auto;
+  overflow-x: hidden;
   border-radius: 6px;
   user-select: none;
   -webkit-user-select: none;
@@ -473,6 +526,7 @@ body.vscode-high-contrast .mw-codeblock-content .shiki {
 }
 
 .mw-table {
+  table-layout: fixed;
   width: 100%;
   overflow: hidden;
   border: 1px solid var(--vscode-editorWidget-border);
@@ -491,6 +545,8 @@ body.vscode-high-contrast .mw-codeblock-content .shiki {
   border-right: 1px solid var(--vscode-editorWidget-border);
   border-bottom: 1px solid var(--vscode-editorWidget-border);
   vertical-align: top;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .mw-table th:last-child,
@@ -564,19 +620,27 @@ body.vscode-high-contrast .mw-codeblock-content .shiki {
 }
 
 .mw-math {
+  max-width: 100%;
   color: var(--vscode-editor-foreground);
 }
 
 .mw-inline-math {
   display: inline-block;
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow: hidden;
   padding: 0 0.18em;
   vertical-align: middle;
 }
 
 .mw-display-math {
-  overflow-x: auto;
+  overflow: hidden;
   padding: 0.65em 0;
   text-align: center;
+}
+
+.mw-math > * {
+  max-width: 100%;
 }
 
 .mw-math-error {

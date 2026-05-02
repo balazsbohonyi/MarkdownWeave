@@ -1,8 +1,13 @@
-import type { EditorSelection, EditorState, Transaction } from '@codemirror/state';
+import { EditorSelection, type EditorState, type Transaction } from '@codemirror/state';
 
 export type RawRange = {
   from: number;
   to: number;
+};
+
+export type HiddenBoundary = RawRange & {
+  contentFrom: number;
+  contentTo: number;
 };
 
 export function findFrontmatterRange(state: EditorState): RawRange | undefined {
@@ -38,6 +43,96 @@ export function selectionIntersects(selection: EditorSelection, from: number, to
 
 export function selectionChanged(transaction: Transaction): boolean {
   return !transaction.startState.selection.eq(transaction.state.selection);
+}
+
+export function getHiddenBoundarySnapPosition(boundaries: HiddenBoundary[], position: number): number | undefined {
+  const candidates: Array<{ from: number; to: number; snap: number }> = [];
+
+  for (const boundary of boundaries) {
+    let snap: number | undefined;
+    if (position === boundary.contentFrom && boundary.from < boundary.contentFrom) {
+      snap = boundary.from;
+    } else if (position === boundary.contentTo && boundary.contentTo < boundary.to) {
+      snap = boundary.to;
+    }
+
+    if (snap !== undefined) {
+      candidates.push({ from: boundary.from, to: boundary.to, snap });
+    }
+  }
+
+  candidates.sort((left, right) => left.to - left.from - (right.to - right.from));
+  return candidates[0]?.snap;
+}
+
+export function expandSelectionToHiddenBoundaries(
+  selection: EditorSelection,
+  boundaries: HiddenBoundary[]
+): EditorSelection | undefined {
+  if (boundaries.length === 0 || selection.ranges.every((range) => range.empty)) {
+    return undefined;
+  }
+
+  let changed = false;
+  const ranges = selection.ranges.map((range) => {
+    if (range.empty) {
+      return range;
+    }
+
+    let anchor = range.anchor;
+    let head = range.head;
+    for (const boundary of boundaries) {
+      const expanded = expandRangeToHiddenBoundary(anchor, head, boundary);
+      anchor = expanded.anchor;
+      head = expanded.head;
+    }
+
+    if (anchor === range.anchor && head === range.head) {
+      return range;
+    }
+
+    changed = true;
+    return EditorSelection.range(anchor, head, range.goalColumn);
+  });
+
+  return changed ? EditorSelection.create(ranges, selection.mainIndex) : undefined;
+}
+
+function expandRangeToHiddenBoundary(
+  anchor: number,
+  head: number,
+  boundary: HiddenBoundary
+): { anchor: number; head: number } {
+  let nextAnchor = anchor;
+  let nextHead = head;
+  let from = Math.min(nextAnchor, nextHead);
+  let to = Math.max(nextAnchor, nextHead);
+
+  if (from === boundary.contentFrom && to > boundary.contentFrom && boundary.from < boundary.contentFrom) {
+    if (nextAnchor === from) {
+      nextAnchor = boundary.from;
+    }
+    if (nextHead === from) {
+      nextHead = boundary.from;
+    }
+  }
+
+  from = Math.min(nextAnchor, nextHead);
+  to = Math.max(nextAnchor, nextHead);
+
+  if (to === boundary.contentTo && from < boundary.contentTo && boundary.contentTo < boundary.to) {
+    if (nextAnchor === to) {
+      nextAnchor = boundary.to;
+    }
+    if (nextHead === to) {
+      nextHead = boundary.to;
+    }
+  }
+
+  return {
+    anchor: nextAnchor,
+    head: nextHead
+  };
 }
 
 export function mapRange(range: RawRange, transaction: Transaction): RawRange | undefined {

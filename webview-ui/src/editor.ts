@@ -7,7 +7,7 @@ import type { SyntaxNode } from '@lezer/common';
 import { GFM } from '@lezer/markdown';
 import { postEdit, setPersistedState, type EditorIndentation, type PersistedState, type WebviewEditChange } from './bridge';
 import { markdownBlockWidgets } from './decorations/blockWidgets';
-import { linkClickExtension, markdownBoundarySnapping, markdownDecorations } from './decorations';
+import { commitMarkdownSelection, linkClickExtension, markdownBoundarySnapping, markdownDecorations } from './decorations';
 
 const STATE_DEBOUNCE_MS = 200;
 const CURSOR_SCROLL_MARGIN = 32;
@@ -126,13 +126,14 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
   }
 
   function restoreState(state: PersistedState | undefined): void {
-    if (!state) {
-      return;
-    }
-
     requestAnimationFrame(() => {
-      const cursorOffset = Math.min(state.cursorOffset, view.state.doc.length);
       view.focus();
+
+      if (!state) {
+        return;
+      }
+
+      const cursorOffset = Math.min(state.cursorOffset, view.state.doc.length);
       view.dispatch({
         selection: EditorSelection.cursor(cursorOffset),
         scrollIntoView: true,
@@ -178,8 +179,10 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
         selection: EditorSelection.single(0, view.state.doc.length),
         scrollIntoView: true
       });
+      commitMarkdownSelection(view);
     },
     getSelectedText(): string {
+      commitMarkdownSelection(view);
       return view.state.selection.ranges
         .filter((range) => !range.empty)
         .map((range) => view.state.sliceDoc(range.from, range.to))
@@ -537,9 +540,12 @@ function markdownWeaveTheme(themeKind: 'light' | 'dark' | 'high-contrast') {
   return EditorView.theme({
     '&': {
       height: '100%',
+      width: '100%',
+      flex: '1 1 auto',
       display: 'flex',
       flexDirection: 'column',
       minHeight: '0',
+      minWidth: '0',
       backgroundColor: 'var(--vscode-editor-background)',
       color: 'var(--vscode-editor-foreground)',
       fontFamily: 'var(--vscode-editor-font-family, var(--vscode-font-family))',
@@ -549,6 +555,7 @@ function markdownWeaveTheme(themeKind: 'light' | 'dark' | 'high-contrast') {
     '.cm-scroller': {
       flex: '1 1 auto',
       minHeight: '0',
+      justifyContent: 'center',
       overflowX: 'hidden',
       overflowY: 'auto',
       fontFamily: 'inherit',
@@ -556,12 +563,15 @@ function markdownWeaveTheme(themeKind: 'light' | 'dark' | 'high-contrast') {
     },
     '.cm-content': {
       boxSizing: 'border-box',
-      width: '100%',
-      maxWidth: '100%',
+      flex: '0 1 min(100%, 1024px)',
+      width: 'min(100%, 1024px)',
+      maxWidth: '1024px',
       minWidth: '0',
+      margin: '0 auto',
       padding: '16px',
       caretColor: 'var(--vscode-editorCursor-foreground)',
-      minHeight: '100%'
+      minHeight: '100%',
+      overflowWrap: 'anywhere'
     },
     '&.cm-focused, .cm-content, .cm-content:focus, .cm-scroller, .cm-scroller:focus': {
       outline: 'none !important'

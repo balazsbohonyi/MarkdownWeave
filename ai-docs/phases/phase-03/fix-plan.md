@@ -24,7 +24,6 @@ Fix the tested Phase 3 issues by replacing opaque editing behavior with source-p
 ## Test Plan
 
 - Run `npm.cmd run check-types`, `npm.cmd run compile`, and `npm.cmd run lint`.
-- Add `manual-tests/phase-03-test-document.md` based on the attached document, using a repo-local existing image path for the HTML image case.
 - Manually verify in the Extension Development Host:
   - heading typing does not visually flicker for `##Heading` before the space is added;
   - frontmatter raw mode shows literal `---` markers and normal YAML text, with no HR/heading styling;

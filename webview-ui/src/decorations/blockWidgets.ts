@@ -7,8 +7,6 @@ import {
   Prec,
   StateEffect,
   StateField,
-  type Transaction,
-  type TransactionSpec,
   type Extension,
   type Range
 } from '@codemirror/state';
@@ -24,6 +22,7 @@ import { TableRawToggleWidget, TableWidget, type ParsedTable, type TableAlignmen
 import { applyShikiCss } from '../widgets/shikiCss';
 import {
   findFrontmatterRange,
+  type HiddenBoundary,
   mapRange,
   rangeOverlaps,
   rangesEqual,
@@ -31,7 +30,7 @@ import {
   selectionIntersects,
   type RawRange
 } from './ranges';
-import { isEditing } from './selectionUtils';
+import { isEditing, setSelectionRevealState } from './selectionUtils';
 
 type CodeBlock = {
   code: string;
@@ -261,7 +260,6 @@ export const markdownBlockWidgets: Extension = [
   codeHighlightField,
   blockWidgetDecorationField,
   codeHighlightRequester,
-  EditorState.transactionFilter.of(snapInlineHtmlBoundaryTransaction),
   EditorView.atomicRanges.of((view) => buildCollapsedBlockAtomicRanges(view.state)),
   EditorView.domEventHandlers({
     focus(_event, view) {
@@ -451,58 +449,86 @@ function moveAcrossCollapsedBlock(view: EditorView, direction: 'up' | 'down', ex
   const range = extend
     ? EditorSelection.range(selection.anchor, target.position, target.goalColumn)
     : EditorSelection.cursor(target.position, direction === 'down' ? -1 : 1, undefined, target.goalColumn);
+  const effects: StateEffect<unknown>[] = [EditorView.scrollIntoView(range, { y: 'nearest', yMargin: 32 })];
+
+  if (extend) {
+    effects.push(setSelectionRevealState.of('pending'));
+  }
 
   view.dispatch({
     selection: EditorSelection.create([range]),
-    effects: EditorView.scrollIntoView(range, { y: 'nearest', yMargin: 32 }),
+    effects,
     scrollIntoView: true
   });
   return true;
 }
 
-function snapInlineHtmlBoundaryTransaction(transaction: Transaction): TransactionSpec | readonly TransactionSpec[] {
-  if (!transaction.selection || transaction.newSelection.ranges.some((range) => !range.empty)) {
-    return transaction;
-  }
-
-  const snapPosition = getInlineHtmlBoundarySnapPosition(transaction.state, transaction.newSelection.main.head);
-  if (snapPosition === undefined || snapPosition === transaction.newSelection.main.head) {
-    return transaction;
-  }
-
-  return [
-    transaction,
-    {
-      selection: EditorSelection.cursor(snapPosition),
-      scrollIntoView: transaction.scrollIntoView
-    }
-  ];
-}
-
-function getInlineHtmlBoundarySnapPosition(state: EditorState, position: number): number | undefined {
+export function collectBlockHiddenBoundaries(state: EditorState): HiddenBoundary[] {
   const doc = state.doc.toString();
   const excludedRanges = collectExcludedRanges(state, doc);
-  const candidates: Array<{ from: number; to: number; snap: number }> = [];
+  const boundaries: HiddenBoundary[] = [];
+
+  for (const mathRange of findDisplayMathRanges(state, doc, excludedRanges)) {
+    addHiddenBoundary(boundaries, {
+      from: mathRange.from,
+      to: mathRange.to,
+      contentFrom: getDisplayMathContentFrom(state, mathRange),
+      contentTo: getDisplayMathContentTo(state, mathRange)
+    });
+  }
+
+  excludedRanges.push(...boundaries.map(({ from, to }) => ({ from, to })));
+
+  const inlineMathRanges = findInlineMathRanges(state, doc, excludedRanges);
+  for (const mathRange of inlineMathRanges) {
+    addHiddenBoundary(boundaries, {
+      from: mathRange.from,
+      to: mathRange.to,
+      contentFrom: mathRange.from + 1,
+      contentTo: mathRange.to - 1
+    });
+  }
+  excludedRanges.push(...inlineMathRanges.map(({ from, to }) => ({ from, to })));
 
   for (const htmlRange of findInlineHtmlRanges(state, excludedRanges)) {
     if (!htmlRange.allowed || htmlRange.tag === 'img' || htmlRange.contentFrom >= htmlRange.contentTo) {
       continue;
     }
 
-    let snap: number | undefined;
-    if (position === htmlRange.contentFrom) {
-      snap = htmlRange.from;
-    } else if (position === htmlRange.contentTo) {
-      snap = htmlRange.to;
-    }
-
-    if (snap !== undefined) {
-      candidates.push({ from: htmlRange.from, to: htmlRange.to, snap });
-    }
+    addHiddenBoundary(boundaries, {
+      from: htmlRange.from,
+      to: htmlRange.to,
+      contentFrom: htmlRange.contentFrom,
+      contentTo: htmlRange.contentTo
+    });
   }
 
-  candidates.sort((left, right) => left.to - left.from - (right.to - right.from));
-  return candidates[0]?.snap;
+  return boundaries.sort((left, right) => left.from - right.from || left.to - right.to);
+}
+
+function addHiddenBoundary(boundaries: HiddenBoundary[], boundary: HiddenBoundary): void {
+  const contentFrom = Math.max(boundary.from, Math.min(boundary.to, boundary.contentFrom));
+  const contentTo = Math.max(boundary.from, Math.min(boundary.to, boundary.contentTo));
+  if (boundary.to <= boundary.from || contentTo < contentFrom || (boundary.from === contentFrom && contentTo === boundary.to)) {
+    return;
+  }
+
+  boundaries.push({
+    from: boundary.from,
+    to: boundary.to,
+    contentFrom,
+    contentTo
+  });
+}
+
+function getDisplayMathContentFrom(state: EditorState, range: MathRange): number {
+  const startLine = state.doc.lineAt(range.from);
+  return startLine.text.trim() === '$$' ? startLine.to + 1 : range.from + 2;
+}
+
+function getDisplayMathContentTo(state: EditorState, range: MathRange): number {
+  const endLine = state.doc.lineAt(Math.max(range.from, range.to - 1));
+  return endLine.text.trim() === '$$' ? endLine.from - 1 : range.to - 2;
 }
 
 function getCollapsedAwareVerticalTarget(
@@ -601,8 +627,11 @@ function findCollapsedBlockRanges(state: EditorState): CollapsedBlockRange[] {
       }
 
       if (node.name === 'FencedCode') {
-        if (!isEditing(state, node.from, node.to, hasFocus)) {
-          const parsed = parseCodeBlock(state, node, doc);
+        const parsed = parseCodeBlock(state, node, doc);
+        const sourceActive = parsed.lang === 'mermaid'
+          ? isMermaidSourceActive(state, node.from, node.to, hasFocus)
+          : shouldRevealCodeBlockRaw(state, node.from, node.to, hasFocus);
+        if (!sourceActive) {
           ranges.push({
             from: node.from,
             to: node.to,
@@ -621,8 +650,11 @@ function findCollapsedBlockRanges(state: EditorState): CollapsedBlockRange[] {
         return false;
       }
 
-      if (node.name === 'HTMLBlock' && !isEditing(state, node.from, node.to, hasFocus)) {
-        ranges.push({ from: node.from, to: node.to, kind: 'block' });
+      if (node.name === 'HTMLBlock') {
+        const htmlRevealPending = isHtmlImageMarkup(doc.slice(node.from, node.to));
+        if (!isEditing(state, node.from, node.to, hasFocus, htmlRevealPending)) {
+          ranges.push({ from: node.from, to: node.to, kind: 'block' });
+        }
         return false;
       }
 
@@ -653,7 +685,7 @@ function addCodeBlockDecoration(
   codeHighlights: CodeHighlightCache
 ): void {
   const parsed = parseCodeBlock(state, node, doc);
-  const editing = isEditing(state, node.from, node.to, hasFocus);
+  const editing = shouldRevealCodeBlockRaw(state, node.from, node.to, hasFocus);
 
   if (parsed.lang === 'mermaid') {
     if (isMermaidSourceActive(state, node.from, node.to, hasFocus)) {
@@ -693,6 +725,18 @@ function addCodeBlockDecoration(
       })
     }).range(node.from, node.to)
   );
+}
+
+function shouldRevealCodeBlockRaw(state: EditorState, from: number, to: number, hasFocus: boolean): boolean {
+  return isEditing(state, from, to, hasFocus, true) || isSelectionTouchingRange(state, from, to, hasFocus);
+}
+
+function isSelectionTouchingRange(state: EditorState, from: number, to: number, hasFocus: boolean): boolean {
+  if (!hasFocus) {
+    return false;
+  }
+
+  return state.selection.ranges.some((range) => !range.empty && range.from <= to && range.to >= from);
 }
 
 function getActiveCodeHighlight(parsed: CodeBlock, cache: CodeHighlightCache): HighlightedCodeBlock | undefined {
@@ -840,7 +884,7 @@ function addHtmlBlockDecoration(
   const raw = doc.slice(node.from, node.to);
   if (isHtmlImageMarkup(raw)) {
     const widget = new HtmlImageWidget(raw, node.from, node.to, true);
-    if (isEditing(state, node.from, node.to, hasFocus)) {
+    if (isEditing(state, node.from, node.to, hasFocus, true)) {
       ranges.push(
         Decoration.widget({
           block: true,
@@ -994,6 +1038,8 @@ function addCodeLineDecorations(
 
   const startLine = state.doc.lineAt(parsed.openingLineFrom);
   const endLine = state.doc.lineAt(Math.max(parsed.openingLineFrom, parsed.closingLineTo));
+  const bodyStartLine = state.doc.lineAt(parsed.codeFrom);
+  const bodyEndLine = state.doc.lineAt(Math.max(parsed.codeFrom, parsed.codeTo - 1));
 
   for (let lineNumber = startLine.number; lineNumber <= endLine.number; lineNumber += 1) {
     const line = state.doc.line(lineNumber);
@@ -1005,6 +1051,24 @@ function addCodeLineDecorations(
 
     if (line.from === parsed.closingLineFrom) {
       classes.push('mw-code-fence-line', 'mw-code-block-end');
+    }
+
+    const isBodyLine =
+      line.number >= bodyStartLine.number &&
+      line.number <= bodyEndLine.number &&
+      line.from !== parsed.openingLineFrom &&
+      line.from !== parsed.closingLineFrom;
+
+    if (isBodyLine) {
+      classes.push('mw-code-body-line');
+
+      if (line.number === bodyStartLine.number) {
+        classes.push('mw-code-body-start');
+      }
+
+      if (line.number === bodyEndLine.number) {
+        classes.push('mw-code-body-end');
+      }
     }
 
     ranges.push(Decoration.line({ class: classes.join(' ') }).range(line.from));
@@ -1270,7 +1334,7 @@ function buildInlineHtmlDecorations(
   for (const htmlRange of findInlineHtmlRanges(state, excludedRanges)) {
     if (htmlRange.tag === 'img' && htmlRange.allowed) {
       const widget = new HtmlImageWidget(state.sliceDoc(htmlRange.from, htmlRange.to), htmlRange.from, htmlRange.to);
-      if (isEditing(state, htmlRange.from, htmlRange.to, hasFocus)) {
+      if (isEditing(state, htmlRange.from, htmlRange.to, hasFocus, true)) {
         ranges.push(
           Decoration.widget({
             side: 1,
@@ -1386,6 +1450,7 @@ function isBlockWidgetEffect(effect: StateEffect<unknown>): boolean {
     effect.is(toggleTableRaw) ||
     effect.is(toggleFrontmatterExpanded) ||
     effect.is(collapseFrontmatter) ||
+    effect.is(setSelectionRevealState) ||
     effect.is(setCodeHighlight)
   );
 }

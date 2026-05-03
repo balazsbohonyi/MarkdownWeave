@@ -45,6 +45,16 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
 
   if (message.type === 'scrollToHeading') {
     editor?.scrollToHeading(message.heading);
+    return;
+  }
+
+  if (message.type === 'imageInserted') {
+    editor?.insertAtCursor(message.markdownText);
+    return;
+  }
+
+  if (message.type === 'runCommand') {
+    editor?.runCommand(message.command);
   }
 });
 

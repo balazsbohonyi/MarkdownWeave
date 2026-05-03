@@ -5,11 +5,18 @@ import { Annotation, Compartment, EditorSelection, EditorState } from '@codemirr
 import { drawSelection, dropCursor, EditorView, keymap, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import type { SyntaxNode } from '@lezer/common';
 import { GFM } from '@lezer/markdown';
-import { postEdit, setPersistedState, type EditorIndentation, type PersistedState, type WebviewEditChange } from './bridge';
+import { postDropFile, postEdit, postPasteImage, setPersistedState, type EditorIndentation, type PersistedState, type WebviewEditChange } from './bridge';
 import { wikiLinkExtension } from './wikiLink/parser';
 import { markdownBlockWidgets } from './decorations/blockWidgets';
 import { commitMarkdownSelection, linkClickExtension, markdownBoundarySnapping, markdownDecorations } from './decorations';
 import { wikiLinkExtensions } from './decorations/wikiLinks';
+import { toggleBold } from './commands/toggleBold';
+import { toggleItalic } from './commands/toggleItalic';
+import { toggleStrikethrough } from './commands/toggleStrikethrough';
+import { toggleInlineCode } from './commands/toggleInlineCode';
+import { insertLink } from './commands/insertLink';
+import { toggleCodeBlock } from './commands/toggleCodeBlock';
+import { increaseHeadingLevel, decreaseHeadingLevel } from './commands/changeHeadingLevel';
 
 const STATE_DEBOUNCE_MS = 200;
 const CURSOR_SCROLL_MARGIN = 32;
@@ -29,6 +36,8 @@ export type MarkdownEditor = {
   selectAll(): void;
   getSelectedText(): string;
   scrollToHeading(heading: string): void;
+  insertAtCursor(text: string): void;
+  runCommand(name: string): void;
   destroy(): void;
 };
 
@@ -46,6 +55,14 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
         history(),
         tabSizeCompartment.of(EditorState.tabSize.of(indentation.tabSize)),
         keymap.of([
+          { key: 'Mod-b', run: toggleBold },
+          { key: 'Mod-i', run: toggleItalic },
+          { key: 'Mod-Shift-x', run: toggleStrikethrough },
+          { key: 'Mod-`', run: toggleInlineCode },
+          { key: 'Mod-k', run: insertLink },
+          { key: 'Mod-Shift-c', run: toggleCodeBlock },
+          { key: 'Mod-Shift-]', run: increaseHeadingLevel },
+          { key: 'Mod-Shift-[', run: decreaseHeadingLevel },
           { key: 'Tab', run: indentCodeBlock },
           { key: 'Tab', run: indentMarkdownListItem },
           { key: 'Shift-Tab', run: outdentMarkdownListItem },
@@ -60,7 +77,13 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
         EditorView.lineWrapping,
         EditorView.domEventHandlers({
           paste(event, eventView) {
+            if (handleImagePaste(event, eventView)) {
+              return true;
+            }
             return pastePlainTextInCodeBlock(event, eventView);
+          },
+          drop(event, eventView) {
+            return handleFileDrop(event, eventView);
           }
         }),
         EditorView.updateListener.of((update) => {
@@ -213,6 +236,31 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
         .join('\n');
     },
     scrollToHeading,
+    insertAtCursor(text: string): void {
+      const pos = view.state.selection.main.head;
+      view.dispatch({
+        changes: { from: pos, insert: text },
+        selection: { anchor: pos + text.length }
+      });
+      view.focus();
+    },
+    runCommand(name: string): void {
+      const commands: Record<string, (v: EditorView) => boolean> = {
+        toggleBold,
+        toggleItalic,
+        toggleStrikethrough,
+        toggleInlineCode,
+        insertLink,
+        toggleCodeBlock,
+        increaseHeadingLevel,
+        decreaseHeadingLevel
+      };
+      const fn = commands[name];
+      if (fn) {
+        fn(view);
+        view.focus();
+      }
+    },
     destroy() {
       if (stateTimer) {
         clearTimeout(stateTimer);
@@ -245,6 +293,71 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
     event.preventDefault();
     event.stopPropagation();
     eventView.dispatch(eventView.state.replaceSelection(normalizeLineEndings(text)));
+    return true;
+  }
+
+  function handleImagePaste(event: ClipboardEvent, _eventView: EditorView): boolean {
+    const items = event.clipboardData?.items;
+    if (!items) {
+      return false;
+    }
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (!item.type.startsWith('image/')) {
+        continue;
+      }
+
+      const blob = item.getAsFile();
+      if (!blob) {
+        continue;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const mimeType = item.type;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        const base64 = dataUrl.split(',')[1];
+        if (base64) {
+          postPasteImage(base64, mimeType);
+        }
+      };
+      reader.readAsDataURL(blob);
+      return true;
+    }
+
+    return false;
+  }
+
+  function handleFileDrop(event: DragEvent, eventView: EditorView): boolean {
+    const files = event.dataTransfer?.files;
+    if (!files || files.length === 0) {
+      return false;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const dropPos = eventView.posAtCoords({ x: event.clientX, y: event.clientY }) ??
+      eventView.state.selection.main.head;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const filePath = (file as File & { path?: string }).path ?? '';
+      const insertPos = dropPos + i;
+
+      postDropFile(filePath, file.name, file.type, (text) => {
+        const pos = Math.min(insertPos, eventView.state.doc.length);
+        eventView.dispatch({
+          changes: { from: pos, insert: (i > 0 ? '\n' : '') + text }
+        });
+        eventView.focus();
+      });
+    }
+
     return true;
   }
 }

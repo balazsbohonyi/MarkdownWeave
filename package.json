@@ -38,8 +38,108 @@
         "command": "markdownWeave.openEditor",
         "title": "Open with Markdown Weave",
         "category": "Markdown Weave"
+      },
+      {
+        "command": "markdownWeave.toggleBold",
+        "title": "Toggle Bold",
+        "category": "Markdown Weave"
+      },
+      {
+        "command": "markdownWeave.toggleItalic",
+        "title": "Toggle Italic",
+        "category": "Markdown Weave"
+      },
+      {
+        "command": "markdownWeave.toggleStrikethrough",
+        "title": "Toggle Strikethrough",
+        "category": "Markdown Weave"
+      },
+      {
+        "command": "markdownWeave.toggleInlineCode",
+        "title": "Toggle Inline Code",
+        "category": "Markdown Weave"
+      },
+      {
+        "command": "markdownWeave.insertLink",
+        "title": "Insert Link",
+        "category": "Markdown Weave"
+      },
+      {
+        "command": "markdownWeave.toggleCodeBlock",
+        "title": "Toggle Code Block",
+        "category": "Markdown Weave"
+      },
+      {
+        "command": "markdownWeave.increaseHeading",
+        "title": "Increase Heading Level",
+        "category": "Markdown Weave"
+      },
+      {
+        "command": "markdownWeave.decreaseHeading",
+        "title": "Decrease Heading Level",
+        "category": "Markdown Weave"
       }
     ],
+    "keybindings": [
+      {
+        "command": "markdownWeave.toggleBold",
+        "key": "ctrl+b",
+        "mac": "cmd+b",
+        "when": "activeCustomEditorId == 'markdownWeave.editor'"
+      },
+      {
+        "command": "markdownWeave.toggleItalic",
+        "key": "ctrl+i",
+        "mac": "cmd+i",
+        "when": "activeCustomEditorId == 'markdownWeave.editor'"
+      },
+      {
+        "command": "markdownWeave.toggleStrikethrough",
+        "key": "ctrl+shift+x",
+        "mac": "cmd+shift+x",
+        "when": "activeCustomEditorId == 'markdownWeave.editor'"
+      },
+      {
+        "command": "markdownWeave.toggleInlineCode",
+        "key": "ctrl+`",
+        "mac": "cmd+`",
+        "when": "activeCustomEditorId == 'markdownWeave.editor'"
+      },
+      {
+        "command": "markdownWeave.insertLink",
+        "key": "ctrl+k",
+        "mac": "cmd+k",
+        "when": "activeCustomEditorId == 'markdownWeave.editor'"
+      },
+      {
+        "command": "markdownWeave.toggleCodeBlock",
+        "key": "ctrl+shift+c",
+        "mac": "cmd+shift+c",
+        "when": "activeCustomEditorId == 'markdownWeave.editor'"
+      },
+      {
+        "command": "markdownWeave.increaseHeading",
+        "key": "ctrl+shift+]",
+        "mac": "cmd+shift+]",
+        "when": "activeCustomEditorId == 'markdownWeave.editor'"
+      },
+      {
+        "command": "markdownWeave.decreaseHeading",
+        "key": "ctrl+shift+[",
+        "mac": "cmd+shift+[",
+        "when": "activeCustomEditorId == 'markdownWeave.editor'"
+      }
+    ],
+    "configuration": {
+      "title": "Markdown Weave",
+      "properties": {
+        "markdownWeave.pasteImageFolder": {
+          "type": "string",
+          "default": "",
+          "description": "Folder for pasted images, relative to the document file. Leave empty to save in the document's directory."
+        }
+      }
+    },
     "menus": {
       "explorer/context": [
         {

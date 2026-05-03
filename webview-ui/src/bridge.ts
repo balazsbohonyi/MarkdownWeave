@@ -72,6 +72,22 @@ export type HostScrollToHeadingMessage = {
   heading: string;
 };
 
+export type HostImageInsertedMessage = {
+  type: 'imageInserted';
+  markdownText: string;
+};
+
+export type HostInsertMarkdownMessage = {
+  type: 'insertMarkdown';
+  requestId: number;
+  text: string;
+};
+
+export type HostRunCommandMessage = {
+  type: 'runCommand';
+  command: string;
+};
+
 export type HostMessage =
   | HostInitMessage
   | HostUpdateMessage
@@ -79,13 +95,30 @@ export type HostMessage =
   | HostHighlightedCodeBlocksMessage
   | HostWikiLinkStatusesMessage
   | HostClearWikiLinkCacheMessage
-  | HostScrollToHeadingMessage;
+  | HostScrollToHeadingMessage
+  | HostImageInsertedMessage
+  | HostInsertMarkdownMessage
+  | HostRunCommandMessage;
 
 export type WebviewEditChange = {
   from: number;
   to: number;
   insert: string;
   deleted: string;
+};
+
+export type WebviewPasteImageMessage = {
+  type: 'pasteImage';
+  data: string;
+  mimeType: string;
+};
+
+export type WebviewDropFileMessage = {
+  type: 'dropFile';
+  requestId: number;
+  filePath: string;
+  fileName: string;
+  mimeType: string;
 };
 
 type VsCodeApi = {
@@ -206,6 +239,24 @@ export function postOpenWikiLink(uri: string, heading?: string): void {
   vscode.postMessage({ type: 'openWikiLink', uri, heading });
 }
 
+export function postPasteImage(data: string, mimeType: string): void {
+  vscode.postMessage({ type: 'pasteImage', data, mimeType });
+}
+
+let nextDropRequestId = 1;
+const dropRequestCallbacks = new Map<number, (text: string) => void>();
+
+export function postDropFile(
+  filePath: string,
+  fileName: string,
+  mimeType: string,
+  onInsert: (text: string) => void
+): void {
+  const requestId = nextDropRequestId++;
+  dropRequestCallbacks.set(requestId, onInsert);
+  vscode.postMessage({ type: 'dropFile', requestId, filePath, fileName, mimeType });
+}
+
 export function getPersistedState(): PersistedState | undefined {
   return vscode.getState();
 }
@@ -247,6 +298,15 @@ export function handleBridgeMessage(message: HostMessage): boolean {
     wikiLinkBatchTimer = undefined;
     wikiLinkBatchCallbacks.length = 0;
     wikiLinkClearCallback?.();
+    return true;
+  }
+
+  if (message.type === 'insertMarkdown') {
+    const callback = dropRequestCallbacks.get(message.requestId);
+    dropRequestCallbacks.delete(message.requestId);
+    if (callback) {
+      callback(message.text);
+    }
     return true;
   }
 

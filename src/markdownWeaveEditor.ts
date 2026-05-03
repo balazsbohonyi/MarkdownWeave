@@ -1,4 +1,5 @@
 import * as crypto from 'crypto';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { highlight } from './shikiHighlighter';
 
@@ -57,6 +58,20 @@ type WebviewOpenWikiLinkMessage = {
   heading?: string;
 };
 
+type WebviewPasteImageMessage = {
+  type: 'pasteImage';
+  data: string;
+  mimeType: string;
+};
+
+type WebviewDropFileMessage = {
+  type: 'dropFile';
+  requestId: number;
+  filePath: string;
+  fileName: string;
+  mimeType: string;
+};
+
 type WebviewMessage =
   | WebviewReadyMessage
   | WebviewEditMessage
@@ -64,7 +79,9 @@ type WebviewMessage =
   | WebviewResolveImageUriMessage
   | WebviewHighlightCodeBlocksMessage
   | WebviewCheckWikiLinksMessage
-  | WebviewOpenWikiLinkMessage;
+  | WebviewOpenWikiLinkMessage
+  | WebviewPasteImageMessage
+  | WebviewDropFileMessage;
 
 const DOCUMENT_SYNC_DEBOUNCE_MS = 200;
 
@@ -73,6 +90,15 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
 
   private static readonly openPanels = new Map<string, vscode.WebviewPanel>();
   private static readonly pendingHeadings = new Map<string, string>();
+  private static _activePanel: vscode.WebviewPanel | undefined;
+
+  public static get activePanel(): vscode.WebviewPanel | undefined {
+    return MarkdownWeaveEditorProvider._activePanel;
+  }
+
+  public static sendCommandToActive(command: string): void {
+    MarkdownWeaveEditorProvider._activePanel?.webview.postMessage({ type: 'runCommand', command });
+  }
 
   public constructor(private readonly extensionUri: vscode.Uri) {}
 
@@ -103,7 +129,15 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
 
     const uriKey = document.uri.toString();
     MarkdownWeaveEditorProvider.openPanels.set(uriKey, webviewPanel);
-    disposables.push({ dispose: () => MarkdownWeaveEditorProvider.openPanels.delete(uriKey) });
+    if (webviewPanel.active) {
+      MarkdownWeaveEditorProvider._activePanel = webviewPanel;
+    }
+    disposables.push({ dispose: () => {
+      MarkdownWeaveEditorProvider.openPanels.delete(uriKey);
+      if (MarkdownWeaveEditorProvider._activePanel === webviewPanel) {
+        MarkdownWeaveEditorProvider._activePanel = undefined;
+      }
+    }});
 
     const postDocumentContent = (type: 'init' | 'update', source: 'extension' | 'initial'): void => {
       const editorSettings = this.getEditorSettings(document);
@@ -205,6 +239,73 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
       void webviewPanel.webview.postMessage({ type: 'clearWikiLinkCache' });
     };
 
+    const pasteImage = async (message: WebviewPasteImageMessage): Promise<void> => {
+      const ext = mimeTypeToExtension(message.mimeType);
+      if (!ext || !document.uri.scheme.startsWith('file')) {
+        return;
+      }
+
+      const config = vscode.workspace.getConfiguration('markdownWeave', document.uri);
+      const pasteFolder = config.get<string>('pasteImageFolder', '');
+      const docDir = path.dirname(document.uri.fsPath);
+      const targetDir = pasteFolder ? path.join(docDir, pasteFolder) : docDir;
+      const targetDirUri = vscode.Uri.file(targetDir);
+
+      try {
+        await vscode.workspace.fs.createDirectory(targetDirUri);
+      } catch {
+        // Directory already exists
+      }
+
+      const fileName = `image-${Date.now()}.${ext}`;
+      const filePath = path.join(targetDir, fileName);
+      const fileUri = vscode.Uri.file(filePath);
+      const buffer = Buffer.from(message.data, 'base64');
+      await vscode.workspace.fs.writeFile(fileUri, buffer);
+
+      const relativePath = path.relative(docDir, filePath).replace(/\\/g, '/');
+      void webviewPanel.webview.postMessage({
+        type: 'imageInserted',
+        markdownText: `![](${relativePath})`
+      });
+    };
+
+    const dropFile = async (message: WebviewDropFileMessage): Promise<void> => {
+      if (!message.filePath) {
+        return;
+      }
+
+      const docDir = path.dirname(document.uri.fsPath);
+      const droppedPath = message.filePath;
+      let relativePath: string;
+
+      try {
+        relativePath = path.relative(docDir, droppedPath).replace(/\\/g, '/');
+      } catch {
+        relativePath = message.fileName;
+      }
+
+      const { fileName } = message;
+      let text: string;
+      const imageExts = /\.(png|jpe?g|gif|svg|webp)$/i;
+      const mdExts = /\.(md|markdown)$/i;
+
+      if (imageExts.test(fileName) || message.mimeType.startsWith('image/')) {
+        const nameWithoutExt = fileName.replace(/\.[^.]+$/, '');
+        text = `![${nameWithoutExt}](${relativePath})`;
+      } else if (mdExts.test(fileName)) {
+        text = `[${fileName}](${relativePath})`;
+      } else {
+        text = `[${fileName}](${relativePath})`;
+      }
+
+      void webviewPanel.webview.postMessage({
+        type: 'insertMarkdown',
+        requestId: message.requestId,
+        text
+      });
+    };
+
     const highlightCodeBlocks = async (message: WebviewHighlightCodeBlocksMessage): Promise<void> => {
       if (!Array.isArray(message.requests) || message.requests.length === 0) {
         return;
@@ -279,6 +380,24 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
             }
             void vscode.commands.executeCommand('vscode.openWith', uri, MarkdownWeaveEditorProvider.viewType);
           }
+          return;
+        }
+
+        if (message.type === 'pasteImage') {
+          void pasteImage(message);
+          return;
+        }
+
+        if (message.type === 'dropFile') {
+          void dropFile(message);
+          return;
+        }
+      }),
+      webviewPanel.onDidChangeViewState((e) => {
+        if (e.webviewPanel.active) {
+          MarkdownWeaveEditorProvider._activePanel = webviewPanel;
+        } else if (MarkdownWeaveEditorProvider._activePanel === webviewPanel) {
+          MarkdownWeaveEditorProvider._activePanel = undefined;
         }
       }),
       vscode.workspace.onDidCreateFiles(() => invalidateWikiLinkCache()),
@@ -474,4 +593,15 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
       insert: next.slice(from, nextSuffix)
     };
   }
+}
+
+function mimeTypeToExtension(mimeType: string): string | undefined {
+  const map: Record<string, string> = {
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+    'image/svg+xml': 'svg'
+  };
+  return map[mimeType];
 }

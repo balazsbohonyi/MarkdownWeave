@@ -52,7 +52,34 @@ export type HostHighlightedCodeBlocksMessage = {
   results: HighlightedCodeBlock[];
 };
 
-export type HostMessage = HostInitMessage | HostUpdateMessage | HostImageUriMessage | HostHighlightedCodeBlocksMessage;
+export type WikiLinkStatus = {
+  target: string;
+  exists: boolean;
+  uri?: string;
+};
+
+export type HostWikiLinkStatusesMessage = {
+  type: 'wikiLinkStatuses';
+  results: WikiLinkStatus[];
+};
+
+export type HostClearWikiLinkCacheMessage = {
+  type: 'clearWikiLinkCache';
+};
+
+export type HostScrollToHeadingMessage = {
+  type: 'scrollToHeading';
+  heading: string;
+};
+
+export type HostMessage =
+  | HostInitMessage
+  | HostUpdateMessage
+  | HostImageUriMessage
+  | HostHighlightedCodeBlocksMessage
+  | HostWikiLinkStatusesMessage
+  | HostClearWikiLinkCacheMessage
+  | HostScrollToHeadingMessage;
 
 export type WebviewEditChange = {
   from: number;
@@ -82,6 +109,11 @@ let nextImageRequestId = 1;
 const codeHighlightCallbacks = new Map<string, Array<(result: HighlightedCodeBlock) => void>>();
 const pendingCodeHighlightRequests = new Map<string, { id: string; code: string; lang: string }>();
 let codeHighlightBatchTimer: number | undefined;
+const wikiLinkStatusCache = new Map<string, WikiLinkStatus>();
+const pendingWikiLinkTargets = new Set<string>();
+let wikiLinkBatchCallbacks: Array<(results: WikiLinkStatus[]) => void> = [];
+let wikiLinkBatchTimer: number | undefined;
+let wikiLinkClearCallback: (() => void) | undefined;
 
 export function postReady(): void {
   vscode.postMessage({ type: 'ready' });
@@ -142,6 +174,38 @@ export function requestCodeHighlight(
   }, 50);
 }
 
+export function checkWikiLinks(targets: string[], onResults: (results: WikiLinkStatus[]) => void): void {
+  const uncached = targets.filter((t) => !wikiLinkStatusCache.has(t));
+  if (uncached.length === 0) {
+    return;
+  }
+
+  wikiLinkBatchCallbacks.push(onResults);
+  uncached.forEach((t) => pendingWikiLinkTargets.add(t));
+
+  clearTimeout(wikiLinkBatchTimer);
+  wikiLinkBatchTimer = window.setTimeout(() => {
+    wikiLinkBatchTimer = undefined;
+    const batch = Array.from(pendingWikiLinkTargets);
+    pendingWikiLinkTargets.clear();
+    if (batch.length > 0) {
+      vscode.postMessage({ type: 'checkWikiLinks', targets: batch });
+    }
+  }, 50);
+}
+
+export function requestWikiLinkStatus(target: string): WikiLinkStatus | undefined {
+  return wikiLinkStatusCache.get(target);
+}
+
+export function setWikiLinkClearCallback(callback: (() => void) | undefined): void {
+  wikiLinkClearCallback = callback;
+}
+
+export function postOpenWikiLink(uri: string, heading?: string): void {
+  vscode.postMessage({ type: 'openWikiLink', uri, heading });
+}
+
 export function getPersistedState(): PersistedState | undefined {
   return vscode.getState();
 }
@@ -166,6 +230,23 @@ export function handleBridgeMessage(message: HostMessage): boolean {
       codeHighlightCallbacks.delete(result.id);
       callbacks?.forEach((callback) => callback(result));
     });
+    return true;
+  }
+
+  if (message.type === 'wikiLinkStatuses') {
+    message.results.forEach((r) => wikiLinkStatusCache.set(r.target, r));
+    const callbacks = wikiLinkBatchCallbacks.splice(0);
+    callbacks.forEach((cb) => cb(message.results));
+    return true;
+  }
+
+  if (message.type === 'clearWikiLinkCache') {
+    wikiLinkStatusCache.clear();
+    pendingWikiLinkTargets.clear();
+    clearTimeout(wikiLinkBatchTimer);
+    wikiLinkBatchTimer = undefined;
+    wikiLinkBatchCallbacks.length = 0;
+    wikiLinkClearCallback?.();
     return true;
   }
 

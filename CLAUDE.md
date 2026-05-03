@@ -32,7 +32,7 @@ When asked to work on a specific task (e.g. "work on P2-T5"):
 5. **Read the implementation details** — The phase plan contains the goal, step-by-step instructions, files to create/modify, and a "Done when" acceptance criterion.
 6. **Implement** — Follow the steps. Refer to `ai-docs/project.md` for architectural context (project structure in Appendix B, dependencies in Appendix A, extension registration skeleton in Appendix C).
 7. **Document deviations and decisions** — If implementation diverges from the phase plan, or if a durable decision is made, create/update `ai-docs/phases/phase-<NN>/decisions.md`. Use two sections: `## Deviations From Plan` and `## Decisions`. When a phase `decisions.md` is created, also update that phase section in `ai-docs/tasks.md` to add a `Decisions` link next to `Task Details`. Do not create empty `decisions.md` files just to add links.
-8. **Mark complete** — In `ai-docs/tasks.md`, change `- [ ] P{N}-T{M}: ...` to `- [x] P{N}-T{M}: ...`.
+8. **Mark complete** — In `ai-docs/tasks.md`, change `- [ ] P{N}-T{M}: ...` to `- [x] P{N}-T{M}: ...`. Only mark `[x]` when the "Done when" criterion from the phase plan is satisfied.
 9. **Verify** — Check the "Done when" criterion from the phase plan.
 
 ### Working on Multiple Tasks
@@ -59,6 +59,8 @@ Phases must be completed in numerical order. Each phase depends on the previous 
 
 Within a phase, tasks should generally be done in order (T1, T2, T3...) as later tasks often depend on earlier ones. The phase plan will note if reordering is safe.
 
+## Architecture
+
 ### Dual Build Target
 
 This extension has two separate bundles built by `esbuild.mjs`:
@@ -69,6 +71,10 @@ This extension has two separate bundles built by `esbuild.mjs`:
 | `webview-ui/src/` | Browser (IIFE, ES2022) | Webview panel (browser context) | DOM, `acquireVsCodeApi()`, `postMessage` |
 
 Communication between them goes exclusively through `postMessage`. The webview cannot import `vscode` directly. The extension host cannot access the DOM.
+
+### Core Principle
+
+**The markdown source file is the canonical document.** Never reformat, normalize, or round-trip through an intermediate representation. The WYSIWYG effect is achieved purely through CodeMirror 6 decorations on the source text.
 
 ### Key Design Decisions
 
@@ -93,9 +99,7 @@ Communication between them goes exclusively through `postMessage`. The webview c
 - AI-powered features
 - Table cell-level editing (v1.1)
 
-### Core Principle
-
-**The markdown source file is the canonical document.** Never reformat, normalize, or round-trip through an intermediate representation. The WYSIWYG effect is achieved purely through CodeMirror 6 decorations on the source text.
+## Implementation Rules
 
 ### Hidden Syntax Boundary Reveal
 
@@ -105,16 +109,7 @@ When hidden syntax is revealed, the cursor must snap to the outside boundary of 
 
 Block widget root elements must not use vertical CSS margins. CodeMirror does not include external margins in block-widget height measurement, so use padding or internal layout and call `view.requestMeasure()` after asynchronous render or size changes. Preview widgets that represent source ranges, such as tables and Mermaid diagrams, should select/copy the canonical markdown source rather than rendered DOM text.
 
-### Marking Tasks Complete
-
-In `ai-docs/tasks.md`, toggle the checkbox:
-
-```markdown
-- [ ] P1-T1: Task not started
-- [x] P1-T2: Task completed
-```
-
-Only mark `[x]` when the "Done when" criterion from the phase plan is satisfied.
+## Git Conventions
 
 ### Staged Change Handling
 
@@ -145,6 +140,7 @@ For a range of tasks in one commit:
 - Keep the subject line under 72 characters.
 - Use the body (bullet list) when the commit covers multiple tasks or has notable details worth recording.
 - Non-task commits (e.g., housekeeping, config) use plain subjects without a prefix.
+- **No Claude Code attribution footer.** Do not append `🤖 Generated with Claude Code` or `Co-Authored-By:`. Users can add attribution manually if they want it.
 
 **Examples:**
 

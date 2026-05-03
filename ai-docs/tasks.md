@@ -67,14 +67,15 @@
 
 ## Phase 4: Wiki Links & Link Validation
 
-[Task Details](./phases/phase-04/plan.md)
+[Task Details](./phases/phase-04/plan.md) | [Decisions](./phases/phase-04/decisions.md)
 
-- [ ] P4-T1: Wiki link parser extension for CM6 Lezer grammar
-- [ ] P4-T2: `[[page]]` basic rendering + decoration hide/show
-- [ ] P4-T3: Alias syntax `[[page|display text]]` rendering
-- [ ] P4-T5: File existence check (extension host filesystem scan → webview)
-- [ ] P4-T6: Broken link styling (red/dimmed for missing targets)
-- [ ] P4-T7: Ctrl+Click on wiki link opens target file
+- [x] P4-T1: Wiki link parser extension for CM6 Lezer grammar
+- [x] P4-T2: `[[page]]` basic rendering + decoration hide/show
+- [x] P4-T3: Alias syntax `[[page|display text]]` rendering
+- [x] P4-T4: Section links `[[page#heading]]` rendering
+- [x] P4-T5: File existence check (extension host filesystem scan → webview)
+- [x] P4-T6: Broken link styling (red/dimmed for missing targets)
+- [x] P4-T7: Ctrl+Click on wiki link opens target file
 
 ## Phase 5: Editing UX & Keyboard Shortcuts
 

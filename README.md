@@ -38,10 +38,11 @@ Completed foundation through Phase 3:
 frontmatter, and sanitized embedded HTML.
 - Shiki v4 syntax highlighting, KaTeX rendering, Mermaid rendering,
   and DOMPurify-based HTML sanitization.
+- Wiki links (`[[page]]`, `[[page|alias]]`, `[[page#heading]]`) with file
+  existence checks, broken-link styling, and Ctrl+Click navigation.
 
 Still planned:
 
-- Wiki links and link validation.
 - Formatting shortcuts, image paste, drag-and-drop file handling, outline
   navigation, side-by-side mode, theming, settings, performance hardening, and
   publishing automation.
@@ -76,6 +77,8 @@ The beta currently supports live decorations for:
   source-range selection.
 - YAML frontmatter collapse/expand pill.
 - Sanitized embedded HTML, including safe HTML image preview and resize.
+- Wiki links (`[[page]]`, `[[page|alias]]`, `[[page#heading]]`) with broken-link
+  styling for missing files and Ctrl+Click to open the linked file.
 
 Existing Typora-style Markdown image size suffixes are supported:
 
@@ -122,10 +125,10 @@ built-in Markdown preview can render the resized image:
 | Mermaid diagram rendering | Implemented |
 | YAML frontmatter collapse/expand widget | Implemented |
 | Embedded HTML rendering with sanitization | Implemented |
-| Wiki link rendering for `[[page]]` syntax | Planned |
-| Wiki link aliases and heading targets | Planned |
-| Wiki link existence checks and broken-link styling | Planned |
-| Ctrl+Click navigation for wiki links | Planned |
+| Wiki link rendering for `[[page]]` syntax | Implemented |
+| Wiki link aliases and heading targets | Implemented |
+| Wiki link existence checks and broken-link styling | Implemented |
+| Ctrl+Click navigation for wiki links | Implemented |
 | Formatting shortcuts for bold, italic, strikethrough, inline code, links, code blocks, and headings | Planned |
 | Image paste from clipboard into an assets directory | Planned |
 | File drag-and-drop insertion for images, Markdown files, and generic files | Planned |

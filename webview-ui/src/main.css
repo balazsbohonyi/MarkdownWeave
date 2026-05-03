@@ -159,6 +159,20 @@ body {
   text-underline-offset: 2px;
 }
 
+.mw-wikilink {
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.mw-wikilink-broken {
+  color: var(--vscode-errorForeground);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  opacity: 0.8;
+}
+
 .mw-blockquote {
   border-left: 3px solid var(--vscode-textBlockQuote-border, var(--vscode-editorWidget-border));
   color: var(--vscode-textBlockQuote-foreground, var(--vscode-descriptionForeground));

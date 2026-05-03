@@ -6,8 +6,10 @@ import { drawSelection, dropCursor, EditorView, keymap, ViewPlugin, type ViewUpd
 import type { SyntaxNode } from '@lezer/common';
 import { GFM } from '@lezer/markdown';
 import { postEdit, setPersistedState, type EditorIndentation, type PersistedState, type WebviewEditChange } from './bridge';
+import { wikiLinkExtension } from './wikiLink/parser';
 import { markdownBlockWidgets } from './decorations/blockWidgets';
 import { commitMarkdownSelection, linkClickExtension, markdownBoundarySnapping, markdownDecorations } from './decorations';
+import { wikiLinkExtensions } from './decorations/wikiLinks';
 
 const STATE_DEBOUNCE_MS = 200;
 const CURSOR_SCROLL_MARGIN = 32;
@@ -26,6 +28,7 @@ export type MarkdownEditor = {
   saveState(): void;
   selectAll(): void;
   getSelectedText(): string;
+  scrollToHeading(heading: string): void;
   destroy(): void;
 };
 
@@ -39,7 +42,7 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
     state: EditorState.create({
       doc: initialContent,
       extensions: [
-        markdown({ extensions: [GFM] }),
+        markdown({ extensions: [GFM, wikiLinkExtension] }),
         history(),
         tabSizeCompartment.of(EditorState.tabSize.of(indentation.tabSize)),
         keymap.of([
@@ -71,6 +74,7 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
         markdownBoundarySnapping,
         markdownBlockWidgets,
         markdownDecorations,
+        wikiLinkExtensions,
         linkClickExtension
       ]
     })
@@ -143,6 +147,26 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
     });
   }
 
+  function scrollToHeading(heading: string): void {
+    // Queue after restoreState's rAF so heading scroll wins when opening a fresh document.
+    requestAnimationFrame(() => {
+      const normalizedHeading = heading.toLowerCase();
+      const doc = view.state.doc;
+      for (let lineNum = 1; lineNum <= doc.lines; lineNum++) {
+        const line = doc.line(lineNum);
+        const match = /^#{1,6}\s+(.+?)\s*$/.exec(line.text);
+        if (match && match[1].toLowerCase() === normalizedHeading) {
+          view.dispatch({
+            selection: EditorSelection.cursor(line.from),
+            effects: EditorView.scrollIntoView(line.from, { y: 'start' }),
+            annotations: externalUpdate.of(true)
+          });
+          return;
+        }
+      }
+    });
+  }
+
   function queueStateSave(): void {
     if (stateTimer) {
       clearTimeout(stateTimer);
@@ -188,6 +212,7 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
         .map((range) => view.state.sliceDoc(range.from, range.to))
         .join('\n');
     },
+    scrollToHeading,
     destroy() {
       if (stateTimer) {
         clearTimeout(stateTimer);

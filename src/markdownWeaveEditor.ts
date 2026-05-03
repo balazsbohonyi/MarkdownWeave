@@ -46,17 +46,33 @@ type WebviewHighlightCodeBlocksMessage = {
   }>;
 };
 
+type WebviewCheckWikiLinksMessage = {
+  type: 'checkWikiLinks';
+  targets: string[];
+};
+
+type WebviewOpenWikiLinkMessage = {
+  type: 'openWikiLink';
+  uri: string;
+  heading?: string;
+};
+
 type WebviewMessage =
   | WebviewReadyMessage
   | WebviewEditMessage
   | WebviewOpenLinkMessage
   | WebviewResolveImageUriMessage
-  | WebviewHighlightCodeBlocksMessage;
+  | WebviewHighlightCodeBlocksMessage
+  | WebviewCheckWikiLinksMessage
+  | WebviewOpenWikiLinkMessage;
 
 const DOCUMENT_SYNC_DEBOUNCE_MS = 200;
 
 export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = 'markdownWeave.editor';
+
+  private static readonly openPanels = new Map<string, vscode.WebviewPanel>();
+  private static readonly pendingHeadings = new Map<string, string>();
 
   public constructor(private readonly extensionUri: vscode.Uri) {}
 
@@ -68,6 +84,7 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
     const disposables: vscode.Disposable[] = [];
     const workspaceRoots = vscode.workspace.workspaceFolders?.map((folder) => folder.uri) ?? [];
     let isWebviewReady = false;
+    const wikiLinkCache = new Map<string, { exists: boolean; uri: vscode.Uri | undefined }>();
     let suppressNextSync = false;
     let syncSuppressionGeneration = 0;
     let documentSyncTimer: NodeJS.Timeout | undefined;
@@ -83,6 +100,10 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
     };
 
     webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
+
+    const uriKey = document.uri.toString();
+    MarkdownWeaveEditorProvider.openPanels.set(uriKey, webviewPanel);
+    disposables.push({ dispose: () => MarkdownWeaveEditorProvider.openPanels.delete(uriKey) });
 
     const postDocumentContent = (type: 'init' | 'update', source: 'extension' | 'initial'): void => {
       const editorSettings = this.getEditorSettings(document);
@@ -153,6 +174,37 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
       });
     };
 
+    const checkWikiLinks = async (message: WebviewCheckWikiLinksMessage): Promise<void> => {
+      if (!Array.isArray(message.targets) || message.targets.length === 0) {
+        return;
+      }
+
+      const results = await Promise.all(
+        message.targets.map(async (target) => {
+          const cached = wikiLinkCache.get(target);
+          if (cached !== undefined) {
+            return { target, exists: cached.exists, uri: cached.uri?.toString() };
+          }
+
+          const mdMatches = await vscode.workspace.findFiles(`**/${target}.md`, null, 1);
+          const matches = mdMatches.length > 0
+            ? mdMatches
+            : await vscode.workspace.findFiles(`**/${target}.markdown`, null, 1);
+
+          const uri = matches[0] as vscode.Uri | undefined;
+          wikiLinkCache.set(target, { exists: !!uri, uri });
+          return { target, exists: !!uri, uri: uri?.toString() };
+        })
+      );
+
+      void webviewPanel.webview.postMessage({ type: 'wikiLinkStatuses', results });
+    };
+
+    const invalidateWikiLinkCache = (): void => {
+      wikiLinkCache.clear();
+      void webviewPanel.webview.postMessage({ type: 'clearWikiLinkCache' });
+    };
+
     const highlightCodeBlocks = async (message: WebviewHighlightCodeBlocksMessage): Promise<void> => {
       if (!Array.isArray(message.requests) || message.requests.length === 0) {
         return;
@@ -179,6 +231,11 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
         if (message.type === 'ready') {
           isWebviewReady = true;
           postDocumentContent('init', 'initial');
+          const pendingHeading = MarkdownWeaveEditorProvider.pendingHeadings.get(uriKey);
+          if (pendingHeading) {
+            MarkdownWeaveEditorProvider.pendingHeadings.delete(uriKey);
+            void webviewPanel.webview.postMessage({ type: 'scrollToHeading', heading: pendingHeading });
+          }
           return;
         }
 
@@ -199,8 +256,34 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
 
         if (message.type === 'highlightCodeBlocks') {
           void highlightCodeBlocks(message);
+          return;
+        }
+
+        if (message.type === 'checkWikiLinks') {
+          void checkWikiLinks(message);
+          return;
+        }
+
+        if (message.type === 'openWikiLink') {
+          const uri = vscode.Uri.parse(message.uri);
+          const targetKey = uri.toString();
+          const existingPanel = MarkdownWeaveEditorProvider.openPanels.get(targetKey);
+          if (existingPanel) {
+            existingPanel.reveal();
+            if (message.heading) {
+              void existingPanel.webview.postMessage({ type: 'scrollToHeading', heading: message.heading });
+            }
+          } else {
+            if (message.heading) {
+              MarkdownWeaveEditorProvider.pendingHeadings.set(targetKey, message.heading);
+            }
+            void vscode.commands.executeCommand('vscode.openWith', uri, MarkdownWeaveEditorProvider.viewType);
+          }
         }
       }),
+      vscode.workspace.onDidCreateFiles(() => invalidateWikiLinkCache()),
+      vscode.workspace.onDidDeleteFiles(() => invalidateWikiLinkCache()),
+      vscode.workspace.onDidRenameFiles(() => invalidateWikiLinkCache()),
       vscode.workspace.onDidChangeTextDocument((event) => {
         if (event.document.uri.toString() !== document.uri.toString()) {
           return;

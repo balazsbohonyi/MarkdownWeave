@@ -23,5 +23,6 @@ yarn-debug.log*
 yarn-error.log*
 
 # Custom
+.claude/settings.local.json
 .idea
 .temp

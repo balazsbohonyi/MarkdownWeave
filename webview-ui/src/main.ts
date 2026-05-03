@@ -40,6 +40,11 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
     editor?.setIndentation(message.indentation);
     editor?.setContent(message.content);
     setStatus(`Document updated (${message.content.length} characters)`);
+    return;
+  }
+
+  if (message.type === 'scrollToHeading') {
+    editor?.scrollToHeading(message.heading);
   }
 });
 

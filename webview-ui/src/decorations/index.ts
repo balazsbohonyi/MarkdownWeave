@@ -7,7 +7,9 @@ import { CheckboxWidget } from '../widgets/CheckboxWidget';
 import { HrWidget } from '../widgets/HrWidget';
 import { ImageWidget } from '../widgets/ImageWidget';
 import { ListMarkerWidget } from '../widgets/ListMarkerWidget';
-import { postOpenLink } from '../bridge';
+import { WikiLinkWidget } from '../widgets/WikiLinkWidget';
+import { postOpenLink, postOpenWikiLink, requestWikiLinkStatus } from '../bridge';
+import { wikiLinkStatusField } from './wikiLinks';
 import { collectBlockHiddenBoundaries } from './blockWidgets';
 import {
   expandSelectionToHiddenBoundaries,
@@ -407,6 +409,7 @@ registerDecoration('Autolink', linkDecoration);
 registerDecoration('Blockquote', blockquoteDecoration);
 registerDecoration('HorizontalRule', horizontalRuleDecoration);
 registerDecoration('ListItem', listItemDecoration);
+registerDecoration('WikiLink', wikiLinkDecoration);
 
 function headingDecoration(node: SyntaxNodeRef, context: DecorationContext): Range<Decoration>[] {
   const ranges: Range<Decoration>[] = [];
@@ -538,6 +541,46 @@ function linkDecoration(node: SyntaxNodeRef, context: DecorationContext): Range<
   }
 
   return ranges;
+}
+
+function wikiLinkDecoration(node: SyntaxNodeRef, context: DecorationContext): Range<Decoration>[] {
+  if (isEditing(context.state, node.from, node.to, context.hasFocus)) {
+    return [];
+  }
+
+  const targetNode = node.node.getChild('WikiLinkTarget');
+  const headingNode = node.node.getChild('WikiLinkHeading');
+  const aliasNode = node.node.getChild('WikiLinkAlias');
+
+  if (!targetNode) {
+    return [];
+  }
+
+  const target = context.doc.slice(targetNode.from, targetNode.to);
+  let displayText: string;
+
+  if (aliasNode) {
+    displayText = context.doc.slice(aliasNode.from, aliasNode.to);
+  } else if (headingNode) {
+    const heading = context.doc.slice(headingNode.from, headingNode.to);
+    displayText = `${target} > ${heading}`;
+  } else {
+    displayText = target;
+  }
+
+  if (!displayText) {
+    return [];
+  }
+
+  const statuses = context.state.field(wikiLinkStatusField);
+  const status = statuses.get(target);
+
+  return [
+    Decoration.replace({
+      widget: new WikiLinkWidget(displayText, status?.exists),
+      inclusive: false
+    }).range(node.from, node.to)
+  ];
 }
 
 function blockquoteDecoration(node: SyntaxNodeRef, context: DecorationContext): Range<Decoration>[] {
@@ -1014,14 +1057,46 @@ function openLinkFromMouseEvent(event: MouseEvent, view: EditorView): boolean {
   }
 
   const url = findLinkTargetAt(view.state, pos);
-  if (!url) {
-    return false;
+  if (url) {
+    event.preventDefault();
+    event.stopPropagation();
+    postOpenLink(url);
+    return true;
   }
 
-  event.preventDefault();
-  event.stopPropagation();
-  postOpenLink(url);
-  return true;
+  const wikiLink = findWikiLinkAt(view.state, pos);
+  if (wikiLink) {
+    event.preventDefault();
+    event.stopPropagation();
+    const status = requestWikiLinkStatus(wikiLink.target);
+    if (status?.exists && status.uri) {
+      postOpenWikiLink(status.uri, wikiLink.heading);
+    }
+    return true;
+  }
+
+  return false;
+}
+
+function findWikiLinkAt(state: EditorState, pos: number): { target: string; heading?: string } | undefined {
+  // posAtCoords returns node.from for replace-widget decorations (no interior positions).
+  // bias 1 at node.from finds the WikiLink's first child; bias -1 covers interior positions.
+  for (const bias of [1, -1] as const) {
+    let node: SyntaxNode | null = syntaxTree(state).resolveInner(pos, bias);
+    while (node) {
+      if (node.name === 'WikiLink') {
+        const targetNode = node.getChild('WikiLinkTarget');
+        if (!targetNode) return undefined;
+        const target = state.doc.sliceString(targetNode.from, targetNode.to);
+        const headingNode = node.getChild('WikiLinkHeading');
+        const heading = headingNode ? state.doc.sliceString(headingNode.from, headingNode.to) : undefined;
+        return { target, heading };
+      }
+      node = node.parent;
+    }
+  }
+
+  return undefined;
 }
 
 function moveCursorOutsideHiddenBoundary(event: MouseEvent, view: EditorView): boolean {

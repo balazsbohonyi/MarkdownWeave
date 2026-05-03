@@ -48,7 +48,7 @@ The extension targets developers editing documentation, READMEs, and wikis, as w
 - **FR-12:** Tables SHALL render as read-only HTML tables with a toggle for raw source view. Cell-level editing deferred to v1.1.
 - **FR-13:** Wiki links (`[[page]]`, `[[page|alias]]`, `[[page#heading]]`) SHALL render with broken-link detection (red/dimmed styling).
 - **FR-14:** Images SHALL render as inline previews with drag-to-resize using `=WxH` suffix syntax and path resolution relative to the current file.
-- **FR-15:** Pasting images from clipboard SHALL auto-save to the configured assets directory and insert markdown at cursor.
+- **FR-15:** Pasting images from clipboard SHALL auto-save to a configurable folder relative to the document file (default: same directory as the document) and insert markdown at cursor.
 - **FR-16:** Drag-and-drop of files SHALL insert appropriate markdown links/embeds.
 - **FR-17:** YAML frontmatter SHALL collapse by default into a clickable pill widget.
 - **FR-18:** The extension SHALL ship with light, dark, and sepia themes, default to following VS Code's active theme, and support user-provided custom CSS.
@@ -223,7 +223,7 @@ markdownweave/
       "properties": {
         "markdownWeave.theme": { "type": "string", "enum": ["auto","light","dark","sepia"], "default": "auto" },
         "markdownWeave.customCssPath": { "type": "string", "default": "" },
-        "markdownWeave.imageAssetsPath": { "type": "string", "default": "assets" },
+        "markdownWeave.pasteImageFolder": { "type": "string", "default": "", "description": "Folder for pasted images, relative to the document file. Leave empty to save in the document's directory." },
         "markdownWeave.fontSize": { "type": "number", "default": 0 },
         "markdownWeave.lineHeight": { "type": "number", "default": 1.6 },
         "markdownWeave.enableWikiLinks": { "type": "boolean", "default": true },

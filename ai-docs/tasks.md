@@ -89,9 +89,9 @@
 - [ ] P5-T6: Fenced code block toggle shortcut (`Ctrl+Shift+C`)
 - [ ] P5-T7: Heading level increase/decrease (`Ctrl+Shift+]` / `[`)
 - [ ] P5-T8: Register all shortcuts as VS Code commands with `when` clause
-- [ ] P5-T9: Image paste from clipboard (save to assets dir + insert markdown)
-- [ ] P5-T10: Create assets directory if missing + configurable path
-- [ ] P5-T11: Image file drag-and-drop (insert `![](relative/path)`)
+- [ ] P5-T9: Image paste from clipboard (save next to document or in configured subfolder, insert markdown)
+- [ ] P5-T10: `pasteImageFolder` setting (relative to document, default: same dir) + auto-create folder if missing
+- [ ] P5-T11: Image file drag-and-drop (link in place, insert `![](relative/path)`)
 - [ ] P5-T12: Markdown file drag-and-drop (insert `[name](relative/path)`)
 - [ ] P5-T13: Generic file drag-and-drop (insert `[name](relative/path)`)
 

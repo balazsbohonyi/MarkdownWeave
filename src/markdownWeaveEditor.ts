@@ -75,14 +75,6 @@ type WebviewPasteImagesBatchMessage = {
   }>;
 };
 
-type WebviewDropFileMessage = {
-  type: 'dropFile';
-  requestId: number;
-  filePath: string;
-  fileName: string;
-  mimeType: string;
-};
-
 type WebviewMessage =
   | WebviewReadyMessage
   | WebviewEditMessage
@@ -92,8 +84,7 @@ type WebviewMessage =
   | WebviewCheckWikiLinksMessage
   | WebviewOpenWikiLinkMessage
   | WebviewPasteImageMessage
-  | WebviewPasteImagesBatchMessage
-  | WebviewDropFileMessage;
+  | WebviewPasteImagesBatchMessage;
 
 const DOCUMENT_SYNC_DEBOUNCE_MS = 200;
 
@@ -329,42 +320,6 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
       });
     };
 
-    const dropFile = async (message: WebviewDropFileMessage): Promise<void> => {
-      if (!message.filePath) {
-        return;
-      }
-
-      const docDir = path.dirname(document.uri.fsPath);
-      const droppedPath = message.filePath;
-      let relativePath: string;
-
-      try {
-        relativePath = path.relative(docDir, droppedPath).replace(/\\/g, '/');
-      } catch {
-        relativePath = message.fileName;
-      }
-
-      const { fileName } = message;
-      let text: string;
-      const imageExts = /\.(png|jpe?g|gif|svg|webp)$/i;
-      const mdExts = /\.(md|markdown)$/i;
-
-      if (imageExts.test(fileName) || message.mimeType.startsWith('image/')) {
-        const nameWithoutExt = fileName.replace(/\.[^.]+$/, '');
-        text = `![${nameWithoutExt}](${relativePath})`;
-      } else if (mdExts.test(fileName)) {
-        text = `[${fileName}](${relativePath})`;
-      } else {
-        text = `[${fileName}](${relativePath})`;
-      }
-
-      void webviewPanel.webview.postMessage({
-        type: 'insertMarkdown',
-        requestId: message.requestId,
-        text
-      });
-    };
-
     const highlightCodeBlocks = async (message: WebviewHighlightCodeBlocksMessage): Promise<void> => {
       if (!Array.isArray(message.requests) || message.requests.length === 0) {
         return;
@@ -452,10 +407,6 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
           return;
         }
 
-        if (message.type === 'dropFile') {
-          void dropFile(message);
-          return;
-        }
       }),
       webviewPanel.onDidChangeViewState((e) => {
         if (e.webviewPanel.active) {

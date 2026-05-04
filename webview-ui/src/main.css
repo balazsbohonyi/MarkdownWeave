@@ -73,8 +73,7 @@ body {
   word-break: break-word;
 }
 
-.cm-cursor,
-.cm-dropCursor {
+.cm-cursor {
   border-left-color: var(--vscode-editorCursor-foreground) !important;
 }
 

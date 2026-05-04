@@ -50,9 +50,9 @@ The same tree-walk approach used by `isSelectionInsideFencedCode` in `editor.ts`
 
 The `imageInserted` response inserts at the current cursor position via `insertAtCursor`. Since the paste event fires synchronously and the user's cursor does not move between paste and response, this produces correct results in practice.
 
-### File drop uses `file.path` (Electron extension)
+### P5-T11..P5-T13: Drag-and-drop removed — not feasible in VS Code webview
 
-`File.path` is an Electron-specific property available in VS Code webviews. It is accessed via `(file as File & { path?: string }).path`. If `filePath` is empty (non-filesystem drag source), the extension host returns no response and nothing is inserted.
+Dragging any file into a VS Code webview is intercepted by VS Code itself, which opens the file in the editor instead of forwarding the drop event to the webview. This makes file drag-and-drop non-functional by design of the VS Code host. All related code (drop handler, `dropFile` host function, `insertMarkdown` message type, `dropCursor()` extension, associated CSS) was removed.
 
 ### Heading level max is 6 (standard markdown)
 

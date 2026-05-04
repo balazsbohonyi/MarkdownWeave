@@ -2,10 +2,10 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirro
 import { markdown, markdownKeymap } from '@codemirror/lang-markdown';
 import { syntaxTree } from '@codemirror/language';
 import { Annotation, Compartment, EditorSelection, EditorState } from '@codemirror/state';
-import { drawSelection, dropCursor, EditorView, keymap, ViewPlugin, type ViewUpdate } from '@codemirror/view';
+import { drawSelection, EditorView, keymap, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import type { SyntaxNode } from '@lezer/common';
 import { GFM } from '@lezer/markdown';
-import { postDropFile, postEdit, postPasteImagesBatch, setPersistedState, type EditorIndentation, type PersistedState, type WebviewEditChange } from './bridge';
+import { postEdit, postPasteImagesBatch, setPersistedState, type EditorIndentation, type PersistedState, type WebviewEditChange } from './bridge';
 import { setSelectionRevealState } from './decorations/selectionUtils';
 import { wikiLinkExtension } from './wikiLink/parser';
 import { markdownBlockWidgets } from './decorations/blockWidgets';
@@ -105,7 +105,6 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
           ...historyKeymap
         ]),
         drawSelection(),
-        dropCursor(),
         themeCompartment.of(markdownWeaveTheme(currentThemeKind())),
         EditorView.lineWrapping,
         EditorView.domEventHandlers({
@@ -114,9 +113,6 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
               return true;
             }
             return pastePlainTextInCodeBlock(event, eventView);
-          },
-          drop(event, eventView) {
-            return handleFileDrop(event, eventView);
           }
         }),
         EditorView.updateListener.of((update) => {
@@ -392,34 +388,6 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
     return true;
   }
 
-  function handleFileDrop(event: DragEvent, eventView: EditorView): boolean {
-    const files = event.dataTransfer?.files;
-    if (!files || files.length === 0) {
-      return false;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    const dropPos = eventView.posAtCoords({ x: event.clientX, y: event.clientY }) ??
-      eventView.state.selection.main.head;
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const filePath = (file as File & { path?: string }).path ?? '';
-      const insertPos = dropPos + i;
-
-      postDropFile(filePath, file.name, file.type, (text) => {
-        const pos = Math.min(insertPos, eventView.state.doc.length);
-        eventView.dispatch({
-          changes: { from: pos, insert: (i > 0 ? '\n' : '') + text }
-        });
-        eventView.focus();
-      });
-    }
-
-    return true;
-  }
 }
 
 type ParsedListLine = {
@@ -774,7 +742,7 @@ function markdownWeaveTheme(themeKind: 'light' | 'dark' | 'high-contrast') {
     '&.cm-focused, .cm-content, .cm-content:focus, .cm-scroller, .cm-scroller:focus': {
       outline: 'none !important'
     },
-    '.cm-cursor, .cm-dropCursor': {
+    '.cm-cursor': {
       borderLeftColor: 'var(--vscode-editorCursor-foreground)'
     },
     '.cm-cursorLayer': {

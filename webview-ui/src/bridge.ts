@@ -77,12 +77,6 @@ export type HostImageInsertedMessage = {
   markdownText: string;
 };
 
-export type HostInsertMarkdownMessage = {
-  type: 'insertMarkdown';
-  requestId: number;
-  text: string;
-};
-
 export type HostRunCommandMessage = {
   type: 'runCommand';
   command: string;
@@ -97,7 +91,6 @@ export type HostMessage =
   | HostClearWikiLinkCacheMessage
   | HostScrollToHeadingMessage
   | HostImageInsertedMessage
-  | HostInsertMarkdownMessage
   | HostRunCommandMessage;
 
 export type WebviewEditChange = {
@@ -121,14 +114,6 @@ export type WebviewPasteImagesBatchMessage = {
     mimeType: string;
     filename?: string;
   }>;
-};
-
-export type WebviewDropFileMessage = {
-  type: 'dropFile';
-  requestId: number;
-  filePath: string;
-  fileName: string;
-  mimeType: string;
 };
 
 type VsCodeApi = {
@@ -259,20 +244,6 @@ export function postPasteImagesBatch(
   vscode.postMessage({ type: 'pasteImagesBatch', images });
 }
 
-let nextDropRequestId = 1;
-const dropRequestCallbacks = new Map<number, (text: string) => void>();
-
-export function postDropFile(
-  filePath: string,
-  fileName: string,
-  mimeType: string,
-  onInsert: (text: string) => void
-): void {
-  const requestId = nextDropRequestId++;
-  dropRequestCallbacks.set(requestId, onInsert);
-  vscode.postMessage({ type: 'dropFile', requestId, filePath, fileName, mimeType });
-}
-
 export function getPersistedState(): PersistedState | undefined {
   return vscode.getState();
 }
@@ -314,15 +285,6 @@ export function handleBridgeMessage(message: HostMessage): boolean {
     wikiLinkBatchTimer = undefined;
     wikiLinkBatchCallbacks.length = 0;
     wikiLinkClearCallback?.();
-    return true;
-  }
-
-  if (message.type === 'insertMarkdown') {
-    const callback = dropRequestCallbacks.get(message.requestId);
-    dropRequestCallbacks.delete(message.requestId);
-    if (callback) {
-      callback(message.text);
-    }
     return true;
   }
 

@@ -6,6 +6,7 @@ import { drawSelection, dropCursor, EditorView, keymap, ViewPlugin, type ViewUpd
 import type { SyntaxNode } from '@lezer/common';
 import { GFM } from '@lezer/markdown';
 import { postDropFile, postEdit, postPasteImage, setPersistedState, type EditorIndentation, type PersistedState, type WebviewEditChange } from './bridge';
+import { setSelectionRevealState } from './decorations/selectionUtils';
 import { wikiLinkExtension } from './wikiLink/parser';
 import { markdownBlockWidgets } from './decorations/blockWidgets';
 import { commitMarkdownSelection, linkClickExtension, markdownBoundarySnapping, markdownDecorations } from './decorations';
@@ -43,8 +44,42 @@ export type MarkdownEditor = {
 
 export function createMarkdownEditor(parent: HTMLElement, initialContent: string, initialIndentation: EditorIndentation): MarkdownEditor {
   let stateTimer: number | undefined;
+  let pendingCM6Command: { name: string; timeout: number } | undefined;
   let indentation = normalizeIndentation(initialIndentation);
   parent.style.setProperty('--mw-tab-size', String(indentation.tabSize));
+
+  // When a formatting shortcut is handled by the CM6 keymap, we mark it here.
+  // The VS Code keybinding fires the same command via postMessage shortly after
+  // (because VS Code intercepts keydown from webviews independently). The runCommand
+  // handler checks this mark and skips if CM6 already handled it, preventing double-execution.
+  function cm6Handled(name: string): void {
+    if (pendingCM6Command) {
+      clearTimeout(pendingCM6Command.timeout);
+    }
+    pendingCM6Command = {
+      name,
+      timeout: window.setTimeout(() => {
+        pendingCM6Command = undefined;
+      }, 100)
+    };
+  }
+
+  function dedup(name: string, fn: (v: EditorView) => boolean): (v: EditorView) => boolean {
+    return (v) => {
+      const handled = fn(v);
+      if (handled) {
+        cm6Handled(name);
+        postFormatState(name, v);
+      }
+      return handled;
+    };
+  }
+
+  // After any format command, reset the selection reveal state so that newly inserted
+  // markers (~~, **, etc.) are hidden by WYSIWYG decorations rather than shown as raw source.
+  function postFormatState(_name: string, v: EditorView): void {
+    v.dispatch({ effects: setSelectionRevealState.of('none') });
+  }
 
   const view = new EditorView({
     parent,
@@ -55,14 +90,12 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
         history(),
         tabSizeCompartment.of(EditorState.tabSize.of(indentation.tabSize)),
         keymap.of([
-          { key: 'Mod-b', run: toggleBold },
-          { key: 'Mod-i', run: toggleItalic },
-          { key: 'Mod-Shift-x', run: toggleStrikethrough },
-          { key: 'Mod-`', run: toggleInlineCode },
-          { key: 'Mod-k', run: insertLink },
-          { key: 'Mod-Shift-c', run: toggleCodeBlock },
-          { key: 'Mod-Shift-]', run: increaseHeadingLevel },
-          { key: 'Mod-Shift-[', run: decreaseHeadingLevel },
+          { key: 'Mod-b', run: dedup('toggleBold', toggleBold) },
+          { key: 'Mod-i', run: dedup('toggleItalic', toggleItalic) },
+          { key: 'Mod-Shift-x', run: dedup('toggleStrikethrough', toggleStrikethrough) },
+          { key: 'Mod-Shift-`', run: dedup('toggleInlineCode', toggleInlineCode) },
+          { key: 'Mod-k', run: dedup('insertLink', insertLink) },
+          { key: 'Mod-Shift-c', run: dedup('toggleCodeBlock', toggleCodeBlock) },
           { key: 'Tab', run: indentCodeBlock },
           { key: 'Tab', run: indentMarkdownListItem },
           { key: 'Shift-Tab', run: outdentMarkdownListItem },
@@ -245,6 +278,12 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
       view.focus();
     },
     runCommand(name: string): void {
+      // CM6 keymap already handled this keypress — skip the VS Code postMessage duplicate.
+      if (pendingCM6Command?.name === name) {
+        clearTimeout(pendingCM6Command.timeout);
+        pendingCM6Command = undefined;
+        return;
+      }
       const commands: Record<string, (v: EditorView) => boolean> = {
         toggleBold,
         toggleItalic,
@@ -258,12 +297,16 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
       const fn = commands[name];
       if (fn) {
         fn(view);
+        postFormatState(name, view);
         view.focus();
       }
     },
     destroy() {
       if (stateTimer) {
         clearTimeout(stateTimer);
+      }
+      if (pendingCM6Command) {
+        clearTimeout(pendingCM6Command.timeout);
       }
 
       observer.disconnect();

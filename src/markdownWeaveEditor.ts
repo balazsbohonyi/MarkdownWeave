@@ -475,7 +475,8 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
 
   private async openLink(url: string): Promise<void> {
     try {
-      await vscode.env.openExternal(vscode.Uri.parse(url));
+      const normalized = /^[a-z][a-z\d+\-.]*:/i.test(url) ? url : `https://${url}`;
+      await vscode.env.openExternal(vscode.Uri.parse(normalized));
     } catch {
       void vscode.window.showWarningMessage(`Markdown Weave could not open link: ${url}`);
     }

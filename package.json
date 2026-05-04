@@ -101,8 +101,8 @@
       },
       {
         "command": "markdownWeave.toggleInlineCode",
-        "key": "ctrl+`",
-        "mac": "cmd+`",
+        "key": "ctrl+shift+`",
+        "mac": "cmd+shift+`",
         "when": "activeCustomEditorId == 'markdownWeave.editor'"
       },
       {

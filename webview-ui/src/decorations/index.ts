@@ -533,7 +533,11 @@ function linkDecoration(node: SyntaxNodeRef, context: DecorationContext): Range<
   const textEndMark = linkMarks[1];
   const textFrom = firstMark.to;
   const textTo = textEndMark.from;
-  const ranges: Range<Decoration>[] = [Decoration.mark({ class: 'mw-link' }).range(textFrom, textTo)];
+  const ranges: Range<Decoration>[] = [];
+
+  if (textFrom < textTo) {
+    ranges.push(Decoration.mark({ class: 'mw-link' }).range(textFrom, textTo));
+  }
 
   if (!editing) {
     ranges.unshift(Decoration.replace({}).range(firstMark.from, firstMark.to));

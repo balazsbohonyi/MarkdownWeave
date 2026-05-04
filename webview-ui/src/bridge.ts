@@ -111,6 +111,16 @@ export type WebviewPasteImageMessage = {
   type: 'pasteImage';
   data: string;
   mimeType: string;
+  filename?: string;
+};
+
+export type WebviewPasteImagesBatchMessage = {
+  type: 'pasteImagesBatch';
+  images: Array<{
+    data: string;
+    mimeType: string;
+    filename?: string;
+  }>;
 };
 
 export type WebviewDropFileMessage = {
@@ -239,8 +249,14 @@ export function postOpenWikiLink(uri: string, heading?: string): void {
   vscode.postMessage({ type: 'openWikiLink', uri, heading });
 }
 
-export function postPasteImage(data: string, mimeType: string): void {
-  vscode.postMessage({ type: 'pasteImage', data, mimeType });
+export function postPasteImage(data: string, mimeType: string, filename?: string): void {
+  vscode.postMessage({ type: 'pasteImage', data, mimeType, filename });
+}
+
+export function postPasteImagesBatch(
+  images: Array<{ data: string; mimeType: string; filename?: string }>
+): void {
+  vscode.postMessage({ type: 'pasteImagesBatch', images });
 }
 
 let nextDropRequestId = 1;

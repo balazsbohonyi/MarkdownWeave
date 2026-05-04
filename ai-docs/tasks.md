@@ -84,7 +84,7 @@
 - [x] P5-T1: Bold toggle shortcut (`Ctrl+B`)
 - [x] P5-T2: Italic toggle shortcut (`Ctrl+I`)
 - [x] P5-T3: Strikethrough toggle shortcut (`Ctrl+Shift+X`)
-- [x] P5-T4: Inline code toggle shortcut (`` Ctrl+` ``)
+- [x] P5-T4: Inline code toggle shortcut (`` Ctrl+Shift+` ``)
 - [x] P5-T5: Link insert/edit shortcut (`Ctrl+K`)
 - [x] P5-T6: Fenced code block toggle shortcut (`Ctrl+Shift+C`)
 - [x] P5-T7: Heading level increase/decrease (`Ctrl+Shift+]` / `[`)

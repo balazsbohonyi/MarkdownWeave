@@ -5,7 +5,7 @@ import { Annotation, Compartment, EditorSelection, EditorState } from '@codemirr
 import { drawSelection, dropCursor, EditorView, keymap, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import type { SyntaxNode } from '@lezer/common';
 import { GFM } from '@lezer/markdown';
-import { postDropFile, postEdit, postPasteImage, setPersistedState, type EditorIndentation, type PersistedState, type WebviewEditChange } from './bridge';
+import { postDropFile, postEdit, postPasteImagesBatch, setPersistedState, type EditorIndentation, type PersistedState, type WebviewEditChange } from './bridge';
 import { setSelectionRevealState } from './decorations/selectionUtils';
 import { wikiLinkExtension } from './wikiLink/parser';
 import { markdownBlockWidgets } from './decorations/blockWidgets';
@@ -345,6 +345,8 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
       return false;
     }
 
+    const imageBlobs: Array<{ blob: File; mimeType: string }> = [];
+
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       if (!item.type.startsWith('image/')) {
@@ -356,23 +358,38 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
         continue;
       }
 
-      event.preventDefault();
-      event.stopPropagation();
-
-      const mimeType = item.type;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const dataUrl = reader.result as string;
-        const base64 = dataUrl.split(',')[1];
-        if (base64) {
-          postPasteImage(base64, mimeType);
-        }
-      };
-      reader.readAsDataURL(blob);
-      return true;
+      imageBlobs.push({ blob, mimeType: item.type });
     }
 
-    return false;
+    if (imageBlobs.length === 0) {
+      return false;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const readPromises = imageBlobs.map(
+      ({ blob, mimeType }) =>
+        new Promise<{ data: string; mimeType: string; filename: string } | null>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const dataUrl = reader.result as string;
+            const base64 = dataUrl.split(',')[1];
+            resolve(base64 ? { data: base64, mimeType, filename: blob.name } : null);
+          };
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(blob);
+        })
+    );
+
+    void Promise.all(readPromises).then((results) => {
+      const images = results.filter((r): r is NonNullable<typeof r> => r !== null);
+      if (images.length > 0) {
+        postPasteImagesBatch(images);
+      }
+    });
+
+    return true;
   }
 
   function handleFileDrop(event: DragEvent, eventView: EditorView): boolean {

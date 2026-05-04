@@ -64,6 +64,22 @@ The plan says "up to `####`" (h4), but the implementation uses h6 (the full mark
 
 The plan mentions `{ ignoreIfExists: true }` as an option to `createDirectory`, but the VS Code `FileSystem` API does not accept options on `createDirectory`. A `try/catch` block is used instead to silently ignore "already exists" errors.
 
-### Drop handler classifies files in the extension host, not the webview
+### Alt text uses original clipboard filename
 
-The plan's drop flow (P5-T11/T12/T13) shows per-type handling in the webview (image → `![]()`, markdown → `[]()`, generic → `[]()`). The classification is instead done entirely in the extension host, which keeps the webview message simple (`dropFile` with path/name/mimeType) and the host authoritative on file type detection.
+The plan specifies empty alt text (`![]()`) and a generated filename (`image-{Date.now()}.{ext}`). The implementation uses the original clipboard `File.name` as alt text: `![screenshot-2024](screenshot-2024.png)`. Falls back to `image-{timestamp}` for browser-synthesized generic names (e.g. `"image.png"` from Snipping Tool) or if the original filename is not available.
+
+### Counter-based duplicate filenames
+
+When a file with the original name already exists at the target path, instead of unconditionally falling back to `image-{timestamp}`, the implementation finds the first available `{name}-NN.{ext}` where NN is zero-padded to 2 digits (01, 02, ..., 99). Example: pasting `logo.png` twice produces `logo.png` and `logo-01.png`. Falls back to timestamp only if all 99 slots are taken.
+
+### Multiple image paste support
+
+The plan only covers single-image paste. The implementation collects all image blobs from the clipboard, reads them via `Promise.all`, and sends them as a batch (`pasteImagesBatch` message with an `images` array). The extension host processes each image sequentially (alt text, counter logic, file write) and sends back combined markdown with a blank line (`\n\n`) between images.
+
+### Image paste appends trailing newline
+
+The `imageInserted` markdown text includes a trailing `\n` so the cursor lands after the image syntax boundary after insertion. Without this, the cursor sits at the end of the `![](...)` markdown, causing `isEditing` to return `true` (inclusive boundary check) and showing raw syntax with a block preview instead of the inline rendered image.
+
+### `isEditing` uses exclusive boundary for empty cursor positions
+
+`selectionUtils.ts` line 42 changed from `range.from <= to` to `range.from < to` for empty selections. A cursor at position N is after character N-1, so it should be considered outside the range ending at N. This prevents decorations from rendering in edit-mode when the cursor sits immediately after the closing marker — a scenario that occurs after programmatic insertions like image paste.

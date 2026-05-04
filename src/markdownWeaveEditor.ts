@@ -1,4 +1,5 @@
 import * as crypto from 'crypto';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { highlight } from './shikiHighlighter';
@@ -62,6 +63,16 @@ type WebviewPasteImageMessage = {
   type: 'pasteImage';
   data: string;
   mimeType: string;
+  filename?: string;
+};
+
+type WebviewPasteImagesBatchMessage = {
+  type: 'pasteImagesBatch';
+  images: Array<{
+    data: string;
+    mimeType: string;
+    filename?: string;
+  }>;
 };
 
 type WebviewDropFileMessage = {
@@ -81,6 +92,7 @@ type WebviewMessage =
   | WebviewCheckWikiLinksMessage
   | WebviewOpenWikiLinkMessage
   | WebviewPasteImageMessage
+  | WebviewPasteImagesBatchMessage
   | WebviewDropFileMessage;
 
 const DOCUMENT_SYNC_DEBOUNCE_MS = 200;
@@ -257,7 +269,8 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
         // Directory already exists
       }
 
-      const fileName = `image-${Date.now()}.${ext}`;
+      const altText = resolveAltText(message.filename, ext, targetDir);
+      const fileName = `${altText}.${ext}`;
       const filePath = path.join(targetDir, fileName);
       const fileUri = vscode.Uri.file(filePath);
       const buffer = Buffer.from(message.data, 'base64');
@@ -266,7 +279,53 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
       const relativePath = path.relative(docDir, filePath).replace(/\\/g, '/');
       void webviewPanel.webview.postMessage({
         type: 'imageInserted',
-        markdownText: `![](${relativePath})`
+        markdownText: `![${altText}](${relativePath})\n`
+      });
+    };
+
+    const pasteImagesBatch = async (message: WebviewPasteImagesBatchMessage): Promise<void> => {
+      if (!document.uri.scheme.startsWith('file')) {
+        return;
+      }
+
+      const config = vscode.workspace.getConfiguration('markdownWeave', document.uri);
+      const pasteFolder = config.get<string>('pasteImageFolder', '');
+      const docDir = path.dirname(document.uri.fsPath);
+      const targetDir = pasteFolder ? path.join(docDir, pasteFolder) : docDir;
+      const targetDirUri = vscode.Uri.file(targetDir);
+
+      try {
+        await vscode.workspace.fs.createDirectory(targetDirUri);
+      } catch {
+        // Directory already exists
+      }
+
+      const lines: string[] = [];
+
+      for (const img of message.images) {
+        const ext = mimeTypeToExtension(img.mimeType);
+        if (!ext) {
+          continue;
+        }
+
+        const altText = resolveAltText(img.filename, ext, targetDir);
+        const fileName = `${altText}.${ext}`;
+        const filePath = path.join(targetDir, fileName);
+        const fileUri = vscode.Uri.file(filePath);
+        const buffer = Buffer.from(img.data, 'base64');
+        await vscode.workspace.fs.writeFile(fileUri, buffer);
+
+        const relativePath = path.relative(docDir, filePath).replace(/\\/g, '/');
+        lines.push(`![${altText}](${relativePath})`);
+      }
+
+      if (lines.length === 0) {
+        return;
+      }
+
+      void webviewPanel.webview.postMessage({
+        type: 'imageInserted',
+        markdownText: lines.join('\n\n') + '\n'
       });
     };
 
@@ -385,6 +444,11 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
 
         if (message.type === 'pasteImage') {
           void pasteImage(message);
+          return;
+        }
+
+        if (message.type === 'pasteImagesBatch') {
+          void pasteImagesBatch(message);
           return;
         }
 
@@ -594,6 +658,66 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
       insert: next.slice(from, nextSuffix)
     };
   }
+}
+
+const GENERIC_CLIPBOARD_NAMES = new Set([
+  'image.png',
+  'image.jpeg',
+  'image.jpg',
+  'image.gif',
+  'image.webp',
+  'image.svg',
+  'image.bmp',
+  'blob'
+]);
+
+function resolveAltText(
+  originalFilename: string | undefined,
+  ext: string,
+  targetDir: string
+): string {
+  const generatedName = `image-${Date.now()}`;
+
+  if (!originalFilename) {
+    return generatedName;
+  }
+
+  const sanitized = originalFilename.replace(/[/\\:*?"<>|]/g, '_').replace(/[\x00-\x1f]/g, '');
+  if (!sanitized) {
+    return generatedName;
+  }
+
+  if (GENERIC_CLIPBOARD_NAMES.has(sanitized.toLowerCase())) {
+    return generatedName;
+  }
+
+  const parsedPath = path.parse(sanitized);
+  const baseName = parsedPath.name;
+  if (!baseName) {
+    return generatedName;
+  }
+
+  return findAvailableName(baseName, ext, targetDir);
+}
+
+function findAvailableName(
+  baseName: string,
+  ext: string,
+  targetDir: string
+): string {
+  if (!fs.existsSync(path.join(targetDir, `${baseName}.${ext}`))) {
+    return baseName;
+  }
+
+  for (let n = 1; n <= 99; n++) {
+    const suffix = n.toString().padStart(2, '0');
+    const candidate = `${baseName}-${suffix}`;
+    if (!fs.existsSync(path.join(targetDir, `${candidate}.${ext}`))) {
+      return candidate;
+    }
+  }
+
+  return `image-${Date.now()}`;
 }
 
 function mimeTypeToExtension(mimeType: string): string | undefined {

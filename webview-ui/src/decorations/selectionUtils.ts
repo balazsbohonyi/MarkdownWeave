@@ -39,11 +39,11 @@ export function isEditing(
 
   state.selection.ranges.some((range) => {
     if (range.empty) {
-      editing = range.from >= from && range.from < to;
+      editing = range.from >= from && range.from <= to;
       return editing;
     }
 
-    editing = (revealPendingSelection || revealState === 'committed') && range.from < to && range.to > from;
+    editing = (revealPendingSelection || revealState === 'committed') && range.from < to && range.to >= from;
     return editing;
   });
 

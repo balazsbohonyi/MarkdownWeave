@@ -2,16 +2,24 @@ import './main.css';
 import {
   getPersistedState,
   handleBridgeMessage,
+  postHeadings,
+  postCursorLine,
   postReady,
   type HostMessage
 } from './bridge';
 import { createMarkdownEditor, type MarkdownEditor } from './editor';
+import { extractHeadings, type HeadingItem } from './headings';
+import { Breadcrumb } from './breadcrumb';
 
 const app = document.getElementById('app');
 const editorMount = document.getElementById('editor');
+const breadcrumbContainer = document.getElementById('breadcrumb');
 const status = document.getElementById('status');
 
 let editor: MarkdownEditor | undefined;
+let breadcrumb: Breadcrumb | undefined;
+let currentHeadings: HeadingItem[] = [];
+let currentCursorLine = 1;
 
 if (!app || !editorMount) {
   throw new Error('MarkdownWeave editor mount point was not found.');
@@ -30,8 +38,40 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
 
   if (message.type === 'init') {
     editorMount.textContent = '';
-    editor = createMarkdownEditor(editorMount, message.content, message.indentation);
+    breadcrumb?.destroy();
+    breadcrumb = undefined;
+
+    editor = createMarkdownEditor(
+      editorMount,
+      message.content,
+      message.indentation,
+      (headings) => {
+        currentHeadings = headings;
+        breadcrumb?.update(headings, currentCursorLine);
+      },
+      (line) => {
+        currentCursorLine = line;
+        breadcrumb?.update(currentHeadings, line);
+      }
+    );
+
     editor.restoreState(getPersistedState());
+
+    // Extract and send initial headings immediately after load
+    const initialHeadings = extractHeadings(editor.view.state);
+    currentHeadings = initialHeadings;
+    postHeadings(initialHeadings);
+
+    // Send initial cursor line
+    const initialLine = editor.view.state.doc.lineAt(editor.view.state.selection.main.head).number;
+    currentCursorLine = initialLine;
+    postCursorLine(initialLine);
+
+    if (breadcrumbContainer) {
+      breadcrumb = new Breadcrumb(breadcrumbContainer, editor.view);
+      breadcrumb.update(initialHeadings, initialLine);
+    }
+
     setStatus(`Document loaded (${message.content.length} characters)`);
     return;
   }
@@ -48,6 +88,11 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
     return;
   }
 
+  if (message.type === 'scrollToLine') {
+    editor?.scrollToLine(message.line);
+    return;
+  }
+
   if (message.type === 'imageInserted') {
     editor?.insertAtCursor(message.markdownText);
     return;
@@ -61,6 +106,7 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
 window.addEventListener('beforeunload', () => {
   editor?.saveState();
   editor?.destroy();
+  breadcrumb?.destroy();
 });
 
 window.addEventListener(

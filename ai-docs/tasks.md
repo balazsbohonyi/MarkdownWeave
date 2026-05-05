@@ -98,16 +98,16 @@
 
 ## Phase 6: Document Outline & Navigation
 
-[Task Details](./phases/phase-06/plan.md)
+[Task Details](./phases/phase-06/plan.md) | [Decisions](./phases/phase-06/decisions.md)
 
-- [ ] P6-T1: remark/unified setup for AST analysis on extension host
-- [ ] P6-T2: Heading extraction from document AST
-- [ ] P6-T3: TreeView provider for outline sidebar
-- [ ] P6-T4: Click-to-scroll: outline item → scroll webview to heading
-- [ ] P6-T5: Active heading highlight in outline (sync with cursor position)
-- [ ] P6-T6: Outline auto-refresh on document change (debounced 300ms)
-- [ ] P6-T7: Breadcrumb bar in webview (current heading path)
-- [ ] P6-T8: Breadcrumb click-to-scroll + sibling dropdown
+- [x] P6-T1: remark/unified setup for AST analysis on extension host
+- [x] P6-T2: Heading extraction from document AST
+- [x] P6-T3: TreeView provider for outline sidebar
+- [x] P6-T4: Click-to-scroll: outline item → scroll webview to heading
+- [x] P6-T5: Active heading highlight in outline (sync with cursor position)
+- [x] P6-T6: Outline auto-refresh on document change (debounced 300ms)
+- [x] P6-T7: Breadcrumb bar in webview (current heading path)
+- [x] P6-T8: Breadcrumb click-to-scroll + sibling dropdown
 
 ## Phase 7: Side-by-Side Mode
 

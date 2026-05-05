@@ -108,6 +108,7 @@ function expandRangeToHiddenBoundary(
   let from = Math.min(nextAnchor, nextHead);
   let to = Math.max(nextAnchor, nextHead);
 
+  // Case 1: selection starts at contentFrom and extends right → expand left to include the prefix
   if (from === boundary.contentFrom && to > boundary.contentFrom && boundary.from < boundary.contentFrom) {
     if (nextAnchor === from) {
       nextAnchor = boundary.from;
@@ -120,12 +121,31 @@ function expandRangeToHiddenBoundary(
   from = Math.min(nextAnchor, nextHead);
   to = Math.max(nextAnchor, nextHead);
 
+  // Case 2: selection ends at contentTo and starts before it → expand right to include the suffix
   if (to === boundary.contentTo && from < boundary.contentTo && boundary.contentTo < boundary.to) {
     if (nextAnchor === to) {
       nextAnchor = boundary.to;
     }
     if (nextHead === to) {
       nextHead = boundary.to;
+    }
+  }
+
+  from = Math.min(nextAnchor, nextHead);
+  to = Math.max(nextAnchor, nextHead);
+
+  // Case 3: selection right-end falls strictly inside the left hidden prefix and the
+  // selection starts before the boundary. Contract the right-end to boundary.from so
+  // that delete operations do not remove the hidden prefix chars.
+  // Note: when `to === boundary.contentFrom` (head lands at the first visible character),
+  // we intentionally skip this contraction so the element is included in the selection
+  // and its raw markers are revealed.
+  if (from < boundary.from && to > boundary.from && to < boundary.contentFrom && boundary.from < boundary.contentFrom) {
+    if (nextAnchor === to) {
+      nextAnchor = boundary.from;
+    }
+    if (nextHead === to) {
+      nextHead = boundary.from;
     }
   }
 

@@ -55,6 +55,7 @@ let pendingPointerId: number | undefined;
 let pendingPointerStart: { x: number; y: number } | undefined;
 let removePointerArmListeners: (() => void) | undefined;
 let removePointerFinishListeners: (() => void) | undefined;
+let removeKeyboardFinishListeners: (() => void) | undefined;
 
 export const markdownDecorations = ViewPlugin.fromClass(
   class {
@@ -85,6 +86,9 @@ export const markdownDecorations = ViewPlugin.fromClass(
       }
 
       if (update.state.selection.ranges.some((range) => !range.empty)) {
+        if (!pointerSelectionInProgress && pendingPointerId === undefined && getSelectionRevealState(update.state) !== 'committed') {
+          ensureKeyboardSelectionReleaseCommit(update.view);
+        }
         this.decorations = buildDecorations(update.view);
         return;
       }
@@ -366,8 +370,7 @@ function startKeyboardSelection(view: EditorView): void {
     return;
   }
 
-  keyboardSelectionInProgress = true;
-  view.dispatch({ effects: setSelectionRevealState.of('pending') });
+  beginKeyboardSelectionReleaseCommit(view, true);
 }
 
 function finishKeyboardSelection(view: EditorView): void {
@@ -376,12 +379,49 @@ function finishKeyboardSelection(view: EditorView): void {
   }
 
   keyboardSelectionInProgress = false;
+  removeKeyboardFinishListeners?.();
   if (view.state.selection.ranges.some((range) => !range.empty)) {
     commitMarkdownSelection(view);
     return;
   }
 
   view.dispatch({ effects: setSelectionRevealState.of('none') });
+}
+
+function ensureKeyboardSelectionReleaseCommit(view: EditorView): void {
+  if (!keyboardSelectionInProgress) {
+    beginKeyboardSelectionReleaseCommit(view, false);
+  }
+}
+
+function beginKeyboardSelectionReleaseCommit(view: EditorView, dispatchPending: boolean): void {
+  removeKeyboardFinishListeners?.();
+  keyboardSelectionInProgress = true;
+  if (dispatchPending) {
+    view.dispatch({ effects: setSelectionRevealState.of('pending') });
+  }
+
+  const finishFromKey = (event: KeyboardEvent): void => {
+    if (shouldCommitKeyboardSelection(event)) {
+      finishKeyboardSelection(view);
+    }
+  };
+  const finish = (): void => {
+    finishKeyboardSelection(view);
+  };
+
+  window.addEventListener('keyup', finishFromKey, true);
+  document.addEventListener('keyup', finishFromKey, true);
+  view.contentDOM.addEventListener('keyup', finishFromKey, true);
+  window.addEventListener('blur', finish, true);
+
+  removeKeyboardFinishListeners = () => {
+    window.removeEventListener('keyup', finishFromKey, true);
+    document.removeEventListener('keyup', finishFromKey, true);
+    view.contentDOM.removeEventListener('keyup', finishFromKey, true);
+    window.removeEventListener('blur', finish, true);
+    removeKeyboardFinishListeners = undefined;
+  };
 }
 
 function isSelectionExtendingKey(event: KeyboardEvent): boolean {
@@ -815,6 +855,15 @@ function adjustHiddenBoundaryTransaction(transaction: Transaction): TransactionS
     return transaction;
   }
 
+  // Guard: only snap within the same line. A stale Lezer tree (e.g. after typing a
+  // new heading) can report boundary positions that land on the wrong line and
+  // cause the cursor to jump there.
+  const cursorLine = transaction.state.doc.lineAt(selection.head);
+  const snapLine = transaction.state.doc.lineAt(snapPosition);
+  if (cursorLine.number !== snapLine.number) {
+    return transaction;
+  }
+
   return [
     transaction,
     {
@@ -1125,19 +1174,17 @@ function moveCursorOutsideHiddenBoundary(event: MouseEvent, view: EditorView): b
     return false;
   }
 
-  const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
-  if (pos === null) {
-    return false;
-  }
+  // Use the cursor position placed by mousedown rather than posAtCoords, because by
+  // the time 'click' fires CM6 may have re-rendered decorations (revealing markers),
+  // causing posAtCoords to return a position inside the now-visible marker text instead
+  // of at the boundary edge.
+  const pos = view.state.selection.main.head;
 
   const snapPosition = getHiddenBoundarySnapPosition(collectAllHiddenBoundaries(view.state), pos);
   if (snapPosition === undefined || snapPosition === pos) {
     return false;
   }
 
-  event.preventDefault();
-  event.stopPropagation();
-  view.focus();
   view.dispatch({ selection: { anchor: snapPosition } });
   return true;
 }

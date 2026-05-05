@@ -72,6 +72,21 @@ export type HostScrollToHeadingMessage = {
   heading: string;
 };
 
+export type HostScrollToLineMessage = {
+  type: 'scrollToLine';
+  line: number;
+};
+
+export type WebviewHeadingsMessage = {
+  type: 'headings';
+  items: Array<{ level: 1 | 2 | 3 | 4 | 5 | 6; text: string; line: number; from: number }>;
+};
+
+export type WebviewCursorLineMessage = {
+  type: 'cursorLine';
+  line: number;
+};
+
 export type HostImageInsertedMessage = {
   type: 'imageInserted';
   markdownText: string;
@@ -94,6 +109,7 @@ export type HostMessage =
   | HostWikiLinkStatusesMessage
   | HostClearWikiLinkCacheMessage
   | HostScrollToHeadingMessage
+  | HostScrollToLineMessage
   | HostImageInsertedMessage
   | HostClearImageUriCacheMessage
   | HostRunCommandMessage;
@@ -260,6 +276,14 @@ export function getPersistedState(): PersistedState | undefined {
 
 export function setPersistedState(state: PersistedState): void {
   vscode.setState(state);
+}
+
+export function postHeadings(items: WebviewHeadingsMessage['items']): void {
+  vscode.postMessage({ type: 'headings', items });
+}
+
+export function postCursorLine(line: number): void {
+  vscode.postMessage({ type: 'cursorLine', line });
 }
 
 export function handleBridgeMessage(message: HostMessage): boolean {

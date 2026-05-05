@@ -5,7 +5,8 @@ import { Annotation, Compartment, EditorSelection, EditorState } from '@codemirr
 import { drawSelection, EditorView, keymap, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import type { SyntaxNode } from '@lezer/common';
 import { GFM } from '@lezer/markdown';
-import { postEdit, postPasteImagesBatch, setPersistedState, type EditorIndentation, type PersistedState, type WebviewEditChange } from './bridge';
+import { postEdit, postHeadings, postCursorLine, postPasteImagesBatch, setPersistedState, type EditorIndentation, type PersistedState, type WebviewEditChange } from './bridge';
+import { extractHeadings, type HeadingItem } from './headings';
 import { setSelectionRevealState } from './decorations/selectionUtils';
 import { wikiLinkExtension } from './wikiLink/parser';
 import { markdownBlockWidgets } from './decorations/blockWidgets';
@@ -21,6 +22,8 @@ import { increaseHeadingLevel, decreaseHeadingLevel } from './commands/changeHea
 
 const STATE_DEBOUNCE_MS = 200;
 const CURSOR_SCROLL_MARGIN = 32;
+const HEADINGS_DEBOUNCE_MS = 300;
+const CURSOR_LINE_THROTTLE_MS = 20;
 const cursorViewportMeasureKey = {};
 
 const externalUpdate = Annotation.define<boolean>();
@@ -37,13 +40,23 @@ export type MarkdownEditor = {
   selectAll(): void;
   getSelectedText(): string;
   scrollToHeading(heading: string): void;
+  scrollToLine(line: number): void;
   insertAtCursor(text: string): void;
   runCommand(name: string): void;
   destroy(): void;
 };
 
-export function createMarkdownEditor(parent: HTMLElement, initialContent: string, initialIndentation: EditorIndentation): MarkdownEditor {
+export function createMarkdownEditor(
+  parent: HTMLElement,
+  initialContent: string,
+  initialIndentation: EditorIndentation,
+  onHeadingsChange?: (headings: HeadingItem[]) => void,
+  onCursorLineChange?: (line: number) => void
+): MarkdownEditor {
   let stateTimer: number | undefined;
+  let headingsTimer: number | undefined;
+  let cursorLineTimer: number | undefined;
+  let pendingCursorLine: number | undefined;
   let pendingCM6Command: { name: string; timeout: number } | undefined;
   let indentation = normalizeIndentation(initialIndentation);
   parent.style.setProperty('--mw-tab-size', String(indentation.tabSize));
@@ -120,6 +133,23 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
 
           if (update.docChanged || update.selectionSet || update.viewportChanged) {
             queueStateSave();
+          }
+
+          if (update.docChanged) {
+            if (headingsTimer) {
+              clearTimeout(headingsTimer);
+            }
+            headingsTimer = window.setTimeout(() => {
+              headingsTimer = undefined;
+              const headings = extractHeadings(update.view.state);
+              postHeadings(headings);
+              onHeadingsChange?.(headings);
+            }, HEADINGS_DEBOUNCE_MS);
+          }
+
+          if (update.selectionSet) {
+            const line = update.state.doc.lineAt(update.state.selection.main.head).number;
+            queueCursorLine(line);
           }
         }),
         cursorViewportFollow,
@@ -210,12 +240,28 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
         if (match && match[1].toLowerCase() === normalizedHeading) {
           view.dispatch({
             selection: EditorSelection.cursor(line.from),
-            effects: EditorView.scrollIntoView(line.from, { y: 'start' }),
+            effects: EditorView.scrollIntoView(line.from, { y: 'start', yMargin: getBreadcrumbScrollMargin() }),
             annotations: externalUpdate.of(true)
           });
+          keepPositionBelowBreadcrumb(line.from);
           return;
         }
       }
+    });
+  }
+
+  function scrollToLine(line: number): void {
+    requestAnimationFrame(() => {
+      const doc = view.state.doc;
+      const clampedLine = Math.max(1, Math.min(line, doc.lines));
+      const lineObj = doc.line(clampedLine);
+      view.dispatch({
+        selection: EditorSelection.cursor(lineObj.to),
+        effects: EditorView.scrollIntoView(lineObj.from, { y: 'start', yMargin: getBreadcrumbScrollMargin() }),
+        annotations: externalUpdate.of(true)
+      });
+      keepPositionBelowBreadcrumb(lineObj.from);
+      view.focus();
     });
   }
 
@@ -235,6 +281,48 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
       scrollTop: view.scrollDOM.scrollTop,
       cursorOffset: view.state.selection.main.head
     });
+  }
+
+  function queueCursorLine(line: number): void {
+    pendingCursorLine = line;
+    if (cursorLineTimer !== undefined) {
+      return;
+    }
+
+    cursorLineTimer = window.setTimeout(() => {
+      cursorLineTimer = undefined;
+      const latestLine = pendingCursorLine;
+      pendingCursorLine = undefined;
+      if (latestLine === undefined) {
+        return;
+      }
+
+      postCursorLine(latestLine);
+      onCursorLineChange?.(latestLine);
+    }, CURSOR_LINE_THROTTLE_MS);
+  }
+
+  function keepPositionBelowBreadcrumb(position: number): void {
+    requestAnimationFrame(() => {
+      const targetTop = getBreadcrumbScrollMargin();
+      if (targetTop <= 0) {
+        return;
+      }
+
+      const coords = view.coordsAtPos(position);
+      if (!coords || coords.top >= targetTop) {
+        return;
+      }
+
+      view.scrollDOM.scrollTop = Math.max(0, view.scrollDOM.scrollTop - (targetTop - coords.top));
+    });
+  }
+
+  function getBreadcrumbScrollMargin(): number {
+    const breadcrumb = document.getElementById('breadcrumb');
+    const breadcrumbBottom = breadcrumb?.getBoundingClientRect().bottom ?? 0;
+    const maxMargin = Math.max(5, view.scrollDOM.clientHeight - 1);
+    return Math.min(maxMargin, Math.max(5, Math.ceil((breadcrumbBottom + 1) * 1.5)));
   }
 
   return {
@@ -265,6 +353,7 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
         .join('\n');
     },
     scrollToHeading,
+    scrollToLine,
     insertAtCursor(text: string): void {
       const pos = view.state.selection.main.head;
       view.dispatch({
@@ -301,6 +390,13 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
       if (stateTimer) {
         clearTimeout(stateTimer);
       }
+      if (headingsTimer) {
+        clearTimeout(headingsTimer);
+      }
+      if (cursorLineTimer) {
+        clearTimeout(cursorLineTimer);
+      }
+      pendingCursorLine = undefined;
       if (pendingCM6Command) {
         clearTimeout(pendingCM6Command.timeout);
       }

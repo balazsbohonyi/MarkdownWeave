@@ -29,11 +29,130 @@ body {
   user-select: none;
 }
 
+#breadcrumb {
+  position: fixed;
+  width: 100%;
+  z-index: 9000;
+
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0;
+  min-height: 24px;
+  margin: -20px -28px 12px;
+  padding: 8px 28px;
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+  border-bottom: 1px solid var(--vscode-editorWidget-border, transparent);
+  background: var(--vscode-editor-background);
+  color: var(--vscode-breadcrumb-foreground, var(--vscode-descriptionForeground));
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+#breadcrumb::-webkit-scrollbar {
+  display: none; /* Chrome/Electron */
+}
+
+#breadcrumb[hidden] {
+  display: none;
+}
+
+#breadcrumb:empty {
+  visibility: hidden;
+  border-bottom: none;
+}
+
+.bc-sep {
+  margin: 0 5px;
+  font-size: 13px;
+  opacity: 0.5;
+  user-select: none;
+}
+
+.bc-segment {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  min-width: 0;
+  max-width: 18em;
+}
+
+.bc-label {
+  overflow: hidden;
+  max-width: 100%;
+  padding: 1px 2px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bc-label:hover {
+  color: var(--vscode-editor-foreground);
+}
+
+.cm-announced {
+  position: fixed !important;
+  top: -10000px !important;
+  overflow: hidden !important;
+  width: 1px !important;
+  height: 1px !important;
+}
+
+.bc-dropdown {
+  z-index: 9001; /* Must be above breadcrumb's z-index: 9000 */
+  min-width: 12em;
+  max-width: 28em;
+  max-height: 14em;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px 0;
+  border: 1px solid var(--vscode-editorWidget-border);
+  border-radius: 4px;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  list-style: none;
+}
+
+.bc-dropdown-item {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  padding: 4px 12px;
+  border: none;
+  background: transparent;
+  color: var(--vscode-editor-foreground);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.bc-dropdown-item:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.bc-dropdown-item-active {
+  color: var(--vscode-textLink-foreground);
+}
+
 #editor {
   --mw-content-max-width: 1024px;
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
+  margin-top: 40px;
+}
+
+body.mw-breadcrumb-hidden #editor {
+  margin-top: 0;
 }
 
 #editor > .cm-editor {

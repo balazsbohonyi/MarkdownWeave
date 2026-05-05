@@ -78,6 +78,11 @@
         "command": "markdownWeave.decreaseHeading",
         "title": "Decrease Heading Level",
         "category": "Markdown Weave"
+      },
+      {
+        "command": "markdownWeave.scrollToHeading",
+        "title": "Scroll to Heading",
+        "category": "Markdown Weave"
       }
     ],
     "keybindings": [
@@ -139,6 +144,15 @@
           "description": "Folder for pasted images, relative to the document file. Leave empty to save in the document's directory."
         }
       }
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "markdownWeave.outline",
+          "name": "Markdown Weave Outline",
+          "when": "activeCustomEditorId == 'markdownWeave.editor'"
+        }
+      ]
     },
     "menus": {
       "explorer/context": [

@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { highlight } from './shikiHighlighter';
+import type { HeadingItem, OutlineProvider } from './outlineProvider';
 
 type WebviewReadyMessage = {
   type: 'ready';
@@ -75,6 +76,16 @@ type WebviewPasteImagesBatchMessage = {
   }>;
 };
 
+type WebviewHeadingsMessage = {
+  type: 'headings';
+  items: HeadingItem[];
+};
+
+type WebviewCursorLineMessage = {
+  type: 'cursorLine';
+  line: number;
+};
+
 type WebviewMessage =
   | WebviewReadyMessage
   | WebviewEditMessage
@@ -84,7 +95,9 @@ type WebviewMessage =
   | WebviewCheckWikiLinksMessage
   | WebviewOpenWikiLinkMessage
   | WebviewPasteImageMessage
-  | WebviewPasteImagesBatchMessage;
+  | WebviewPasteImagesBatchMessage
+  | WebviewHeadingsMessage
+  | WebviewCursorLineMessage;
 
 const DOCUMENT_SYNC_DEBOUNCE_MS = 200;
 
@@ -94,6 +107,9 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
   private static readonly openPanels = new Map<string, vscode.WebviewPanel>();
   private static readonly pendingHeadings = new Map<string, string>();
   private static _activePanel: vscode.WebviewPanel | undefined;
+
+  public static outlineProvider: OutlineProvider | undefined;
+  public static treeView: vscode.TreeView<HeadingItem> | undefined;
 
   public static get activePanel(): vscode.WebviewPanel | undefined {
     return MarkdownWeaveEditorProvider._activePanel;
@@ -118,6 +134,7 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
     let syncSuppressionGeneration = 0;
     let documentSyncTimer: NodeJS.Timeout | undefined;
     let editQueue = Promise.resolve();
+    let lastKnownHeadings: HeadingItem[] = [];
 
     webviewPanel.webview.options = {
       enableScripts: true,
@@ -341,6 +358,44 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
       });
     };
 
+    let lastRevealRequestLine = 0;
+
+    const attemptReveal = (line: number, retriesLeft: number): void => {
+      const op = MarkdownWeaveEditorProvider.outlineProvider;
+      const tv = MarkdownWeaveEditorProvider.treeView;
+      if (!op || !tv || lastRevealRequestLine !== line) {
+        return;
+      }
+      const heading = op.findHeadingForLine(line);
+      if (!heading) {
+        return;
+      }
+      tv.reveal(heading, { select: true, focus: false, expand: true }).then(
+        undefined,
+        () => {
+          // VS Code's treeView.reveal() silently fails when called before the tree has
+          // been rendered for the first time. Retry a few times with a short backoff.
+          if (retriesLeft > 0 && lastRevealRequestLine === line) {
+            setTimeout(() => attemptReveal(line, retriesLeft - 1), 50);
+          }
+        }
+      );
+    };
+
+    const revealHeadingForLine = (line: number): void => {
+      const op = MarkdownWeaveEditorProvider.outlineProvider;
+      const tv = MarkdownWeaveEditorProvider.treeView;
+      if (!op || !tv) {
+        return;
+      }
+      const heading = op.findHeadingForLine(line);
+      if (!heading) {
+        return;
+      }
+      lastRevealRequestLine = line;
+      attemptReveal(line, 3);
+    };
+
     disposables.push(
       webviewPanel.webview.onDidReceiveMessage((message: WebviewMessage) => {
         if (message.type === 'ready') {
@@ -407,12 +462,30 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
           return;
         }
 
+        if (message.type === 'headings') {
+          lastKnownHeadings = message.items;
+          if (MarkdownWeaveEditorProvider._activePanel === webviewPanel) {
+            MarkdownWeaveEditorProvider.outlineProvider?.setHeadings(message.items);
+          }
+          return;
+        }
+
+        if (message.type === 'cursorLine') {
+          if (MarkdownWeaveEditorProvider._activePanel === webviewPanel || webviewPanel.visible) {
+            MarkdownWeaveEditorProvider._activePanel = webviewPanel;
+            revealHeadingForLine(message.line);
+          }
+          return;
+        }
+
       }),
       webviewPanel.onDidChangeViewState((e) => {
         if (e.webviewPanel.active) {
           MarkdownWeaveEditorProvider._activePanel = webviewPanel;
+          MarkdownWeaveEditorProvider.outlineProvider?.setHeadings(lastKnownHeadings);
         } else if (MarkdownWeaveEditorProvider._activePanel === webviewPanel) {
           MarkdownWeaveEditorProvider._activePanel = undefined;
+          MarkdownWeaveEditorProvider.outlineProvider?.setHeadings([]);
         }
       }),
       vscode.workspace.onDidCreateFiles(() => {
@@ -482,6 +555,7 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
 </head>
 <body>
   <main id="app">
+    <nav id="breadcrumb" aria-label="Document breadcrumb"></nav>
     <div id="status">Markdown Weave loading...</div>
     <div id="editor" aria-label="Markdown source"></div>
   </main>

@@ -27,10 +27,7 @@ export const wikiLinkStatusField = StateField.define<Map<string, WikiLinkStatus>
 
 const wikiLinkStatusRequester = ViewPlugin.fromClass(
   class {
-    private readonly view: EditorView;
-
     public constructor(view: EditorView) {
-      this.view = view;
       setWikiLinkClearCallback(() => {
         view.dispatch({ effects: [clearWikiLinkStatusEffect.of(undefined)] });
       });

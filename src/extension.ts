@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { MarkdownWeaveEditorProvider } from './markdownWeaveEditor';
+import { OutlineProvider } from './outlineProvider';
 
 const FORMATTING_COMMANDS: Array<{ id: string; command: string }> = [
   { id: 'markdownWeave.toggleBold', command: 'toggleBold' },
@@ -14,8 +15,17 @@ const FORMATTING_COMMANDS: Array<{ id: string; command: string }> = [
 
 export function activate(context: vscode.ExtensionContext): void {
   const provider = new MarkdownWeaveEditorProvider(context.extensionUri);
+  const outlineProvider = new OutlineProvider();
+  const treeView = vscode.window.createTreeView('markdownWeave.outline', {
+    treeDataProvider: outlineProvider,
+    showCollapseAll: false
+  });
+
+  MarkdownWeaveEditorProvider.outlineProvider = outlineProvider;
+  MarkdownWeaveEditorProvider.treeView = treeView;
 
   context.subscriptions.push(
+    treeView,
     vscode.window.registerCustomEditorProvider(
       MarkdownWeaveEditorProvider.viewType,
       provider,
@@ -32,6 +42,9 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       await vscode.commands.executeCommand('vscode.openWith', uri, MarkdownWeaveEditorProvider.viewType);
+    }),
+    vscode.commands.registerCommand('markdownWeave.scrollToHeading', (line: number) => {
+      MarkdownWeaveEditorProvider.activePanel?.webview.postMessage({ type: 'scrollToLine', line });
     }),
     ...FORMATTING_COMMANDS.map(({ id, command }) =>
       vscode.commands.registerCommand(id, () => {

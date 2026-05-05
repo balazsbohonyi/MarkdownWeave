@@ -26,7 +26,7 @@ source text.
 
 ## Current Status
 
-Completed foundation through Phase 3:
+Completed through Phase 5:
 
 - VS Code custom editor registration for `.md` and `.markdown` files.
 - Webview-based editor shell with extension-host/webview messaging.
@@ -35,17 +35,20 @@ Completed foundation through Phase 3:
 - Clickable links, image previews, image resizing, checkboxes, and nested list
   editing behavior for the currently implemented core decorations.
 - Advanced block widgets for fenced code, tables, math, Mermaid diagrams,
-frontmatter, and sanitized embedded HTML.
+  frontmatter, and sanitized embedded HTML.
 - Shiki v4 syntax highlighting, KaTeX rendering, Mermaid rendering,
   and DOMPurify-based HTML sanitization.
 - Wiki links (`[[page]]`, `[[page|alias]]`, `[[page#heading]]`) with file
   existence checks, broken-link styling, and Ctrl+Click navigation.
+- Keyboard shortcuts for bold, italic, strikethrough, inline code, links,
+  fenced code blocks, and heading level cycling.
+- Image paste from clipboard — saves the image next to the document (or in a
+  configurable subfolder) and inserts the Markdown image link.
 
 Still planned:
 
-- Formatting shortcuts, image paste, drag-and-drop file handling, outline
-  navigation, side-by-side mode, theming, settings, performance hardening, and
-  publishing automation.
+- Outline navigation, side-by-side mode, theming, settings, performance
+  hardening, and publishing automation.
 
 ## Usage
 
@@ -79,6 +82,11 @@ The beta currently supports live decorations for:
 - Sanitized embedded HTML, including safe HTML image preview and resize.
 - Wiki links (`[[page]]`, `[[page|alias]]`, `[[page#heading]]`) with broken-link
   styling for missing files and Ctrl+Click to open the linked file.
+- Keyboard shortcuts: `Ctrl+B` bold, `Ctrl+I` italic, `Ctrl+Shift+X`
+  strikethrough, `Ctrl+Shift+\`` inline code, `Ctrl+K` link, `Ctrl+Shift+C`
+  fenced code block, `Ctrl+Shift+]`/`[` heading level up/down.
+- Image paste from clipboard with configurable target folder
+  (`markdownWeave.pasteImageFolder`) and automatic folder creation.
 
 Existing Typora-style Markdown image size suffixes are supported:
 
@@ -129,9 +137,8 @@ built-in Markdown preview can render the resized image:
 | Wiki link aliases and heading targets | Implemented |
 | Wiki link existence checks and broken-link styling | Implemented |
 | Ctrl+Click navigation for wiki links | Implemented |
-| Formatting shortcuts for bold, italic, strikethrough, inline code, links, code blocks, and headings | Planned |
-| Image paste from clipboard into an assets directory | Planned |
-| File drag-and-drop insertion for images, Markdown files, and generic files | Planned |
+| Formatting shortcuts for bold, italic, strikethrough, inline code, links, code blocks, and headings | Implemented |
+| Image paste from clipboard with configurable target folder | Implemented |
 | Document outline sidebar | Planned |
 | Click-to-scroll outline navigation | Planned |
 | Active heading synchronization | Planned |

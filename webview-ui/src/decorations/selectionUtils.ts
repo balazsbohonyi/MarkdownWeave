@@ -39,7 +39,7 @@ export function isEditing(
 
   state.selection.ranges.some((range) => {
     if (range.empty) {
-      editing = range.from >= from && range.from <= to;
+      editing = range.from >= from && range.from < to;
       return editing;
     }
 

@@ -2,14 +2,22 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirro
 import { markdown, markdownKeymap } from '@codemirror/lang-markdown';
 import { syntaxTree } from '@codemirror/language';
 import { Annotation, Compartment, EditorSelection, EditorState } from '@codemirror/state';
-import { drawSelection, dropCursor, EditorView, keymap, ViewPlugin, type ViewUpdate } from '@codemirror/view';
+import { drawSelection, EditorView, keymap, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import type { SyntaxNode } from '@lezer/common';
 import { GFM } from '@lezer/markdown';
-import { postEdit, setPersistedState, type EditorIndentation, type PersistedState, type WebviewEditChange } from './bridge';
+import { postEdit, postPasteImagesBatch, setPersistedState, type EditorIndentation, type PersistedState, type WebviewEditChange } from './bridge';
+import { setSelectionRevealState } from './decorations/selectionUtils';
 import { wikiLinkExtension } from './wikiLink/parser';
 import { markdownBlockWidgets } from './decorations/blockWidgets';
 import { commitMarkdownSelection, linkClickExtension, markdownBoundarySnapping, markdownDecorations } from './decorations';
 import { wikiLinkExtensions } from './decorations/wikiLinks';
+import { toggleBold } from './commands/toggleBold';
+import { toggleItalic } from './commands/toggleItalic';
+import { toggleStrikethrough } from './commands/toggleStrikethrough';
+import { toggleInlineCode } from './commands/toggleInlineCode';
+import { insertLink } from './commands/insertLink';
+import { toggleCodeBlock } from './commands/toggleCodeBlock';
+import { increaseHeadingLevel, decreaseHeadingLevel } from './commands/changeHeadingLevel';
 
 const STATE_DEBOUNCE_MS = 200;
 const CURSOR_SCROLL_MARGIN = 32;
@@ -29,13 +37,49 @@ export type MarkdownEditor = {
   selectAll(): void;
   getSelectedText(): string;
   scrollToHeading(heading: string): void;
+  insertAtCursor(text: string): void;
+  runCommand(name: string): void;
   destroy(): void;
 };
 
 export function createMarkdownEditor(parent: HTMLElement, initialContent: string, initialIndentation: EditorIndentation): MarkdownEditor {
   let stateTimer: number | undefined;
+  let pendingCM6Command: { name: string; timeout: number } | undefined;
   let indentation = normalizeIndentation(initialIndentation);
   parent.style.setProperty('--mw-tab-size', String(indentation.tabSize));
+
+  // When a formatting shortcut is handled by the CM6 keymap, we mark it here.
+  // The VS Code keybinding fires the same command via postMessage shortly after
+  // (because VS Code intercepts keydown from webviews independently). The runCommand
+  // handler checks this mark and skips if CM6 already handled it, preventing double-execution.
+  function cm6Handled(name: string): void {
+    if (pendingCM6Command) {
+      clearTimeout(pendingCM6Command.timeout);
+    }
+    pendingCM6Command = {
+      name,
+      timeout: window.setTimeout(() => {
+        pendingCM6Command = undefined;
+      }, 100)
+    };
+  }
+
+  function dedup(name: string, fn: (v: EditorView) => boolean): (v: EditorView) => boolean {
+    return (v) => {
+      const handled = fn(v);
+      if (handled) {
+        cm6Handled(name);
+        postFormatState(name, v);
+      }
+      return handled;
+    };
+  }
+
+  // After any format command, reset the selection reveal state so that newly inserted
+  // markers (~~, **, etc.) are hidden by WYSIWYG decorations rather than shown as raw source.
+  function postFormatState(_name: string, v: EditorView): void {
+    v.dispatch({ effects: setSelectionRevealState.of('none') });
+  }
 
   const view = new EditorView({
     parent,
@@ -46,6 +90,12 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
         history(),
         tabSizeCompartment.of(EditorState.tabSize.of(indentation.tabSize)),
         keymap.of([
+          { key: 'Mod-b', run: dedup('toggleBold', toggleBold) },
+          { key: 'Mod-i', run: dedup('toggleItalic', toggleItalic) },
+          { key: 'Mod-Shift-x', run: dedup('toggleStrikethrough', toggleStrikethrough) },
+          { key: 'Mod-Shift-`', run: dedup('toggleInlineCode', toggleInlineCode) },
+          { key: 'Mod-k', run: dedup('insertLink', insertLink) },
+          { key: 'Mod-Shift-c', run: dedup('toggleCodeBlock', toggleCodeBlock) },
           { key: 'Tab', run: indentCodeBlock },
           { key: 'Tab', run: indentMarkdownListItem },
           { key: 'Shift-Tab', run: outdentMarkdownListItem },
@@ -55,11 +105,13 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
           ...historyKeymap
         ]),
         drawSelection(),
-        dropCursor(),
         themeCompartment.of(markdownWeaveTheme(currentThemeKind())),
         EditorView.lineWrapping,
         EditorView.domEventHandlers({
           paste(event, eventView) {
+            if (handleImagePaste(event, eventView)) {
+              return true;
+            }
             return pastePlainTextInCodeBlock(event, eventView);
           }
         }),
@@ -213,9 +265,44 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
         .join('\n');
     },
     scrollToHeading,
+    insertAtCursor(text: string): void {
+      const pos = view.state.selection.main.head;
+      view.dispatch({
+        changes: { from: pos, insert: text },
+        selection: { anchor: pos + text.length }
+      });
+      view.focus();
+    },
+    runCommand(name: string): void {
+      // CM6 keymap already handled this keypress — skip the VS Code postMessage duplicate.
+      if (pendingCM6Command?.name === name) {
+        clearTimeout(pendingCM6Command.timeout);
+        pendingCM6Command = undefined;
+        return;
+      }
+      const commands: Record<string, (v: EditorView) => boolean> = {
+        toggleBold,
+        toggleItalic,
+        toggleStrikethrough,
+        toggleInlineCode,
+        insertLink,
+        toggleCodeBlock,
+        increaseHeadingLevel,
+        decreaseHeadingLevel
+      };
+      const fn = commands[name];
+      if (fn) {
+        fn(view);
+        postFormatState(name, view);
+        view.focus();
+      }
+    },
     destroy() {
       if (stateTimer) {
         clearTimeout(stateTimer);
+      }
+      if (pendingCM6Command) {
+        clearTimeout(pendingCM6Command.timeout);
       }
 
       observer.disconnect();
@@ -247,6 +334,60 @@ export function createMarkdownEditor(parent: HTMLElement, initialContent: string
     eventView.dispatch(eventView.state.replaceSelection(normalizeLineEndings(text)));
     return true;
   }
+
+  function handleImagePaste(event: ClipboardEvent, _eventView: EditorView): boolean {
+    const items = event.clipboardData?.items;
+    if (!items) {
+      return false;
+    }
+
+    const imageBlobs: Array<{ blob: File; mimeType: string }> = [];
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (!item.type.startsWith('image/')) {
+        continue;
+      }
+
+      const blob = item.getAsFile();
+      if (!blob) {
+        continue;
+      }
+
+      imageBlobs.push({ blob, mimeType: item.type });
+    }
+
+    if (imageBlobs.length === 0) {
+      return false;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const readPromises = imageBlobs.map(
+      ({ blob, mimeType }) =>
+        new Promise<{ data: string; mimeType: string; filename: string } | null>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const dataUrl = reader.result as string;
+            const base64 = dataUrl.split(',')[1];
+            resolve(base64 ? { data: base64, mimeType, filename: blob.name } : null);
+          };
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(blob);
+        })
+    );
+
+    void Promise.all(readPromises).then((results) => {
+      const images = results.filter((r): r is NonNullable<typeof r> => r !== null);
+      if (images.length > 0) {
+        postPasteImagesBatch(images);
+      }
+    });
+
+    return true;
+  }
+
 }
 
 type ParsedListLine = {
@@ -601,7 +742,7 @@ function markdownWeaveTheme(themeKind: 'light' | 'dark' | 'high-contrast') {
     '&.cm-focused, .cm-content, .cm-content:focus, .cm-scroller, .cm-scroller:focus': {
       outline: 'none !important'
     },
-    '.cm-cursor, .cm-dropCursor': {
+    '.cm-cursor': {
       borderLeftColor: 'var(--vscode-editorCursor-foreground)'
     },
     '.cm-cursorLayer': {

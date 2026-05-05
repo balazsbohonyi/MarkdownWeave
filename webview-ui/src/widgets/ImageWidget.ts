@@ -11,6 +11,7 @@ export type ImageWidgetOptions = {
   block?: boolean;
   width?: number;
   height?: number;
+  cacheVersion: number;
 };
 
 const remoteUriPattern = /^(?:https?:|data:|vscode-resource:|vscode-webview-resource:)/i;
@@ -30,7 +31,8 @@ export class ImageWidget extends WidgetType {
       widget.options.to === this.options.to &&
       widget.options.block === this.options.block &&
       widget.options.width === this.options.width &&
-      widget.options.height === this.options.height
+      widget.options.height === this.options.height &&
+      widget.options.cacheVersion === this.options.cacheVersion
     );
   }
 

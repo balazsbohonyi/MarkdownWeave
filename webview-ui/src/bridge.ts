@@ -72,6 +72,20 @@ export type HostScrollToHeadingMessage = {
   heading: string;
 };
 
+export type HostImageInsertedMessage = {
+  type: 'imageInserted';
+  markdownText: string;
+};
+
+export type HostClearImageUriCacheMessage = {
+  type: 'clearImageUriCache';
+};
+
+export type HostRunCommandMessage = {
+  type: 'runCommand';
+  command: string;
+};
+
 export type HostMessage =
   | HostInitMessage
   | HostUpdateMessage
@@ -79,13 +93,32 @@ export type HostMessage =
   | HostHighlightedCodeBlocksMessage
   | HostWikiLinkStatusesMessage
   | HostClearWikiLinkCacheMessage
-  | HostScrollToHeadingMessage;
+  | HostScrollToHeadingMessage
+  | HostImageInsertedMessage
+  | HostClearImageUriCacheMessage
+  | HostRunCommandMessage;
 
 export type WebviewEditChange = {
   from: number;
   to: number;
   insert: string;
   deleted: string;
+};
+
+export type WebviewPasteImageMessage = {
+  type: 'pasteImage';
+  data: string;
+  mimeType: string;
+  filename?: string;
+};
+
+export type WebviewPasteImagesBatchMessage = {
+  type: 'pasteImagesBatch';
+  images: Array<{
+    data: string;
+    mimeType: string;
+    filename?: string;
+  }>;
 };
 
 type VsCodeApi = {
@@ -114,6 +147,7 @@ const pendingWikiLinkTargets = new Set<string>();
 let wikiLinkBatchCallbacks: Array<(results: WikiLinkStatus[]) => void> = [];
 let wikiLinkBatchTimer: number | undefined;
 let wikiLinkClearCallback: (() => void) | undefined;
+let imageUriClearCallback: (() => void) | undefined;
 
 export function postReady(): void {
   vscode.postMessage({ type: 'ready' });
@@ -202,8 +236,22 @@ export function setWikiLinkClearCallback(callback: (() => void) | undefined): vo
   wikiLinkClearCallback = callback;
 }
 
+export function setImageUriClearCallback(callback: (() => void) | undefined): void {
+  imageUriClearCallback = callback;
+}
+
 export function postOpenWikiLink(uri: string, heading?: string): void {
   vscode.postMessage({ type: 'openWikiLink', uri, heading });
+}
+
+export function postPasteImage(data: string, mimeType: string, filename?: string): void {
+  vscode.postMessage({ type: 'pasteImage', data, mimeType, filename });
+}
+
+export function postPasteImagesBatch(
+  images: Array<{ data: string; mimeType: string; filename?: string }>
+): void {
+  vscode.postMessage({ type: 'pasteImagesBatch', images });
 }
 
 export function getPersistedState(): PersistedState | undefined {
@@ -247,6 +295,14 @@ export function handleBridgeMessage(message: HostMessage): boolean {
     wikiLinkBatchTimer = undefined;
     wikiLinkBatchCallbacks.length = 0;
     wikiLinkClearCallback?.();
+    return true;
+  }
+
+  if (message.type === 'clearImageUriCache') {
+    imageUriCache.clear();
+    pendingImageUriRequests.clear();
+    imageUriHandlers.clear();
+    imageUriClearCallback?.();
     return true;
   }
 

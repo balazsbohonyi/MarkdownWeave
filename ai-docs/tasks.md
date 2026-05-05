@@ -79,21 +79,22 @@
 
 ## Phase 5: Editing UX & Keyboard Shortcuts
 
-[Task Details](./phases/phase-05/plan.md)
+[Task Details](./phases/phase-05/plan.md) | [Decisions](./phases/phase-05/decisions.md)
 
-- [ ] P5-T1: Bold toggle shortcut (`Ctrl+B`)
-- [ ] P5-T2: Italic toggle shortcut (`Ctrl+I`)
-- [ ] P5-T3: Strikethrough toggle shortcut (`Ctrl+Shift+X`)
-- [ ] P5-T4: Inline code toggle shortcut (`` Ctrl+` ``)
-- [ ] P5-T5: Link insert/edit shortcut (`Ctrl+K`)
-- [ ] P5-T6: Fenced code block toggle shortcut (`Ctrl+Shift+C`)
-- [ ] P5-T7: Heading level increase/decrease (`Ctrl+Shift+]` / `[`)
-- [ ] P5-T8: Register all shortcuts as VS Code commands with `when` clause
-- [ ] P5-T9: Image paste from clipboard (save next to document or in configured subfolder, insert markdown)
-- [ ] P5-T10: `pasteImageFolder` setting (relative to document, default: same dir) + auto-create folder if missing
-- [ ] P5-T11: Image file drag-and-drop (link in place, insert `![](relative/path)`)
-- [ ] P5-T12: Markdown file drag-and-drop (insert `[name](relative/path)`)
-- [ ] P5-T13: Generic file drag-and-drop (insert `[name](relative/path)`)
+- [x] P5-T1: Bold toggle shortcut (`Ctrl+B`)
+- [x] P5-T2: Italic toggle shortcut (`Ctrl+I`)
+- [x] P5-T3: Strikethrough toggle shortcut (`Ctrl+Shift+X`)
+- [x] P5-T4: Inline code toggle shortcut (`` Ctrl+Shift+` ``)
+- [x] P5-T5: Link insert/edit shortcut (`Ctrl+K`)
+- [x] P5-T6: Fenced code block toggle shortcut (`Ctrl+Shift+C`)
+- [x] P5-T7: Heading level increase/decrease (`Ctrl+Shift+]` / `[`)
+- [x] P5-T8: Register all shortcuts as VS Code commands with `when` clause
+- [x] P5-T9: Image paste from clipboard (save next to document or in configured subfolder, insert markdown)
+- [x] P5-T10: `pasteImageFolder` setting (relative to document, default: same dir) + auto-create folder if missing
+- [x] P5-T14: Live image refresh on file-system change (delete/create/rename clears URI cache and re-renders)
+- [ ] ~~P5-T11: Image file drag-and-drop (link in place, insert `![](relative/path)`)~~
+- [ ] ~~P5-T12: Markdown file drag-and-drop (insert `[name](relative/path)`)~~
+- [ ] ~~P5-T13: Generic file drag-and-drop (insert `[name](relative/path)`)~~
 
 ## Phase 6: Document Outline & Navigation
 

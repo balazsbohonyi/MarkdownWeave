@@ -1,4 +1,6 @@
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { highlight } from './shikiHighlighter';
 
@@ -57,6 +59,22 @@ type WebviewOpenWikiLinkMessage = {
   heading?: string;
 };
 
+type WebviewPasteImageMessage = {
+  type: 'pasteImage';
+  data: string;
+  mimeType: string;
+  filename?: string;
+};
+
+type WebviewPasteImagesBatchMessage = {
+  type: 'pasteImagesBatch';
+  images: Array<{
+    data: string;
+    mimeType: string;
+    filename?: string;
+  }>;
+};
+
 type WebviewMessage =
   | WebviewReadyMessage
   | WebviewEditMessage
@@ -64,7 +82,9 @@ type WebviewMessage =
   | WebviewResolveImageUriMessage
   | WebviewHighlightCodeBlocksMessage
   | WebviewCheckWikiLinksMessage
-  | WebviewOpenWikiLinkMessage;
+  | WebviewOpenWikiLinkMessage
+  | WebviewPasteImageMessage
+  | WebviewPasteImagesBatchMessage;
 
 const DOCUMENT_SYNC_DEBOUNCE_MS = 200;
 
@@ -73,6 +93,15 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
 
   private static readonly openPanels = new Map<string, vscode.WebviewPanel>();
   private static readonly pendingHeadings = new Map<string, string>();
+  private static _activePanel: vscode.WebviewPanel | undefined;
+
+  public static get activePanel(): vscode.WebviewPanel | undefined {
+    return MarkdownWeaveEditorProvider._activePanel;
+  }
+
+  public static sendCommandToActive(command: string): void {
+    MarkdownWeaveEditorProvider._activePanel?.webview.postMessage({ type: 'runCommand', command });
+  }
 
   public constructor(private readonly extensionUri: vscode.Uri) {}
 
@@ -103,7 +132,15 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
 
     const uriKey = document.uri.toString();
     MarkdownWeaveEditorProvider.openPanels.set(uriKey, webviewPanel);
-    disposables.push({ dispose: () => MarkdownWeaveEditorProvider.openPanels.delete(uriKey) });
+    if (webviewPanel.active) {
+      MarkdownWeaveEditorProvider._activePanel = webviewPanel;
+    }
+    disposables.push({ dispose: () => {
+      MarkdownWeaveEditorProvider.openPanels.delete(uriKey);
+      if (MarkdownWeaveEditorProvider._activePanel === webviewPanel) {
+        MarkdownWeaveEditorProvider._activePanel = undefined;
+      }
+    }});
 
     const postDocumentContent = (type: 'init' | 'update', source: 'extension' | 'initial'): void => {
       const editorSettings = this.getEditorSettings(document);
@@ -205,6 +242,84 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
       void webviewPanel.webview.postMessage({ type: 'clearWikiLinkCache' });
     };
 
+    const pasteImage = async (message: WebviewPasteImageMessage): Promise<void> => {
+      const ext = mimeTypeToExtension(message.mimeType);
+      if (!ext || !document.uri.scheme.startsWith('file')) {
+        return;
+      }
+
+      const config = vscode.workspace.getConfiguration('markdownWeave', document.uri);
+      const pasteFolder = config.get<string>('pasteImageFolder', '');
+      const docDir = path.dirname(document.uri.fsPath);
+      const targetDir = pasteFolder ? path.join(docDir, pasteFolder) : docDir;
+      const targetDirUri = vscode.Uri.file(targetDir);
+
+      try {
+        await vscode.workspace.fs.createDirectory(targetDirUri);
+      } catch {
+        // Directory already exists
+      }
+
+      const altText = resolveAltText(message.filename, ext, targetDir);
+      const fileName = `${altText}.${ext}`;
+      const filePath = path.join(targetDir, fileName);
+      const fileUri = vscode.Uri.file(filePath);
+      const buffer = Buffer.from(message.data, 'base64');
+      await vscode.workspace.fs.writeFile(fileUri, buffer);
+
+      const relativePath = path.relative(docDir, filePath).replace(/\\/g, '/');
+      void webviewPanel.webview.postMessage({
+        type: 'imageInserted',
+        markdownText: `![${altText}](${relativePath})\n`
+      });
+    };
+
+    const pasteImagesBatch = async (message: WebviewPasteImagesBatchMessage): Promise<void> => {
+      if (!document.uri.scheme.startsWith('file')) {
+        return;
+      }
+
+      const config = vscode.workspace.getConfiguration('markdownWeave', document.uri);
+      const pasteFolder = config.get<string>('pasteImageFolder', '');
+      const docDir = path.dirname(document.uri.fsPath);
+      const targetDir = pasteFolder ? path.join(docDir, pasteFolder) : docDir;
+      const targetDirUri = vscode.Uri.file(targetDir);
+
+      try {
+        await vscode.workspace.fs.createDirectory(targetDirUri);
+      } catch {
+        // Directory already exists
+      }
+
+      const lines: string[] = [];
+
+      for (const img of message.images) {
+        const ext = mimeTypeToExtension(img.mimeType);
+        if (!ext) {
+          continue;
+        }
+
+        const altText = resolveAltText(img.filename, ext, targetDir);
+        const fileName = `${altText}.${ext}`;
+        const filePath = path.join(targetDir, fileName);
+        const fileUri = vscode.Uri.file(filePath);
+        const buffer = Buffer.from(img.data, 'base64');
+        await vscode.workspace.fs.writeFile(fileUri, buffer);
+
+        const relativePath = path.relative(docDir, filePath).replace(/\\/g, '/');
+        lines.push(`![${altText}](${relativePath})`);
+      }
+
+      if (lines.length === 0) {
+        return;
+      }
+
+      void webviewPanel.webview.postMessage({
+        type: 'imageInserted',
+        markdownText: lines.join('\n\n') + '\n'
+      });
+    };
+
     const highlightCodeBlocks = async (message: WebviewHighlightCodeBlocksMessage): Promise<void> => {
       if (!Array.isArray(message.requests) || message.requests.length === 0) {
         return;
@@ -279,11 +394,39 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
             }
             void vscode.commands.executeCommand('vscode.openWith', uri, MarkdownWeaveEditorProvider.viewType);
           }
+          return;
+        }
+
+        if (message.type === 'pasteImage') {
+          void pasteImage(message);
+          return;
+        }
+
+        if (message.type === 'pasteImagesBatch') {
+          void pasteImagesBatch(message);
+          return;
+        }
+
+      }),
+      webviewPanel.onDidChangeViewState((e) => {
+        if (e.webviewPanel.active) {
+          MarkdownWeaveEditorProvider._activePanel = webviewPanel;
+        } else if (MarkdownWeaveEditorProvider._activePanel === webviewPanel) {
+          MarkdownWeaveEditorProvider._activePanel = undefined;
         }
       }),
-      vscode.workspace.onDidCreateFiles(() => invalidateWikiLinkCache()),
-      vscode.workspace.onDidDeleteFiles(() => invalidateWikiLinkCache()),
-      vscode.workspace.onDidRenameFiles(() => invalidateWikiLinkCache()),
+      vscode.workspace.onDidCreateFiles(() => {
+        invalidateWikiLinkCache();
+        void webviewPanel.webview.postMessage({ type: 'clearImageUriCache' });
+      }),
+      vscode.workspace.onDidDeleteFiles(() => {
+        invalidateWikiLinkCache();
+        void webviewPanel.webview.postMessage({ type: 'clearImageUriCache' });
+      }),
+      vscode.workspace.onDidRenameFiles(() => {
+        invalidateWikiLinkCache();
+        void webviewPanel.webview.postMessage({ type: 'clearImageUriCache' });
+      }),
       vscode.workspace.onDidChangeTextDocument((event) => {
         if (event.document.uri.toString() !== document.uri.toString()) {
           return;
@@ -356,7 +499,8 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
 
   private async openLink(url: string): Promise<void> {
     try {
-      await vscode.env.openExternal(vscode.Uri.parse(url));
+      const normalized = /^[a-z][a-z\d+\-.]*:/i.test(url) ? url : `https://${url}`;
+      await vscode.env.openExternal(vscode.Uri.parse(normalized));
     } catch {
       void vscode.window.showWarningMessage(`Markdown Weave could not open link: ${url}`);
     }
@@ -474,4 +618,75 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
       insert: next.slice(from, nextSuffix)
     };
   }
+}
+
+const GENERIC_CLIPBOARD_NAMES = new Set([
+  'image.png',
+  'image.jpeg',
+  'image.jpg',
+  'image.gif',
+  'image.webp',
+  'image.svg',
+  'image.bmp',
+  'blob'
+]);
+
+function resolveAltText(
+  originalFilename: string | undefined,
+  ext: string,
+  targetDir: string
+): string {
+  const generatedName = `image-${Date.now()}`;
+
+  if (!originalFilename) {
+    return generatedName;
+  }
+
+  const sanitized = originalFilename.replace(/[/\\:*?"<>|]/g, '_').replace(/[\x00-\x1f]/g, '');
+  if (!sanitized) {
+    return generatedName;
+  }
+
+  if (GENERIC_CLIPBOARD_NAMES.has(sanitized.toLowerCase())) {
+    return generatedName;
+  }
+
+  const parsedPath = path.parse(sanitized);
+  const baseName = parsedPath.name;
+  if (!baseName) {
+    return generatedName;
+  }
+
+  return findAvailableName(baseName, ext, targetDir);
+}
+
+function findAvailableName(
+  baseName: string,
+  ext: string,
+  targetDir: string
+): string {
+  if (!fs.existsSync(path.join(targetDir, `${baseName}.${ext}`))) {
+    return baseName;
+  }
+
+  for (let n = 1; n <= 99; n++) {
+    const suffix = n.toString().padStart(2, '0');
+    const candidate = `${baseName}-${suffix}`;
+    if (!fs.existsSync(path.join(targetDir, `${candidate}.${ext}`))) {
+      return candidate;
+    }
+  }
+
+  return `image-${Date.now()}`;
+}
+
+function mimeTypeToExtension(mimeType: string): string | undefined {
+  const map: Record<string, string> = {
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+    'image/svg+xml': 'svg'
+  };
+  return map[mimeType];
 }

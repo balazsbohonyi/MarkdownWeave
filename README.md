@@ -26,7 +26,7 @@ source text.
 
 ## Current Status
 
-Completed through Phase 5:
+Completed through Phase 6:
 
 - VS Code custom editor registration for `.md` and `.markdown` files.
 - Webview-based editor shell with extension-host/webview messaging.
@@ -44,11 +44,15 @@ Completed through Phase 5:
   fenced code blocks, and heading level cycling.
 - Image paste from clipboard — saves the image next to the document (or in a
   configurable subfolder) and inserts the Markdown image link.
+- Markdown Weave Outline sidebar with heading navigation, auto-refresh, and
+  active-heading synchronization as the cursor moves.
+- Webview breadcrumb navigation with heading path display, sibling dropdowns,
+  click-to-scroll behavior, and automatic hiding when a document has no headings.
 
 Still planned:
 
-- Outline navigation, side-by-side mode, theming, settings, performance
-  hardening, and publishing automation.
+- Side-by-side mode, theming, settings, performance hardening, and publishing
+  automation.
 
 ## Usage
 
@@ -87,6 +91,10 @@ The beta currently supports live decorations for:
   fenced code block, `Ctrl+Shift+]`/`[` heading level up/down.
 - Image paste from clipboard with configurable target folder
   (`markdownWeave.pasteImageFolder`) and automatic folder creation.
+- Markdown Weave Outline panel in the Explorer with heading hierarchy,
+  click-to-scroll navigation, active heading highlight, and debounced refresh.
+- Breadcrumb bar inside the editor showing the current heading path, with
+  click-to-scroll segments and sibling dropdown navigation.
 
 Existing Typora-style Markdown image size suffixes are supported:
 
@@ -139,10 +147,10 @@ built-in Markdown preview can render the resized image:
 | Ctrl+Click navigation for wiki links | Implemented |
 | Formatting shortcuts for bold, italic, strikethrough, inline code, links, code blocks, and headings | Implemented |
 | Image paste from clipboard with configurable target folder | Implemented |
-| Document outline sidebar | Planned |
-| Click-to-scroll outline navigation | Planned |
-| Active heading synchronization | Planned |
-| Breadcrumb navigation | Planned |
+| Document outline sidebar | Implemented |
+| Click-to-scroll outline navigation | Implemented |
+| Active heading synchronization | Implemented |
+| Breadcrumb navigation | Implemented |
 | Side-by-side source and preview mode | Planned |
 | Bidirectional scroll synchronization | Planned |
 | Light, dark, and sepia themes | Planned |

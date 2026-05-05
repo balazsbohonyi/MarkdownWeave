@@ -415,9 +415,18 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
           MarkdownWeaveEditorProvider._activePanel = undefined;
         }
       }),
-      vscode.workspace.onDidCreateFiles(() => invalidateWikiLinkCache()),
-      vscode.workspace.onDidDeleteFiles(() => invalidateWikiLinkCache()),
-      vscode.workspace.onDidRenameFiles(() => invalidateWikiLinkCache()),
+      vscode.workspace.onDidCreateFiles(() => {
+        invalidateWikiLinkCache();
+        void webviewPanel.webview.postMessage({ type: 'clearImageUriCache' });
+      }),
+      vscode.workspace.onDidDeleteFiles(() => {
+        invalidateWikiLinkCache();
+        void webviewPanel.webview.postMessage({ type: 'clearImageUriCache' });
+      }),
+      vscode.workspace.onDidRenameFiles(() => {
+        invalidateWikiLinkCache();
+        void webviewPanel.webview.postMessage({ type: 'clearImageUriCache' });
+      }),
       vscode.workspace.onDidChangeTextDocument((event) => {
         if (event.document.uri.toString() !== document.uri.toString()) {
           return;

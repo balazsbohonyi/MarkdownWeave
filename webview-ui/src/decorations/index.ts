@@ -8,7 +8,7 @@ import { HrWidget } from '../widgets/HrWidget';
 import { ImageWidget } from '../widgets/ImageWidget';
 import { ListMarkerWidget } from '../widgets/ListMarkerWidget';
 import { WikiLinkWidget } from '../widgets/WikiLinkWidget';
-import { postOpenLink, postOpenWikiLink, requestWikiLinkStatus } from '../bridge';
+import { postOpenLink, postOpenWikiLink, requestWikiLinkStatus, setImageUriClearCallback } from '../bridge';
 import { wikiLinkStatusField } from './wikiLinks';
 import { collectBlockHiddenBoundaries } from './blockWidgets';
 import {
@@ -45,6 +45,12 @@ const selectionSettled = StateEffect.define<void>();
 const POINTER_SELECTION_DRAG_SLOP = 2;
 let pointerSelectionInProgress = false;
 let keyboardSelectionInProgress = false;
+let imageCacheVersion = 0;
+
+export function bumpImageCacheVersion(view: EditorView): void {
+  imageCacheVersion++;
+  view.dispatch({});
+}
 let pendingPointerId: number | undefined;
 let pendingPointerStart: { x: number; y: number } | undefined;
 let removePointerArmListeners: (() => void) | undefined;
@@ -56,6 +62,11 @@ export const markdownDecorations = ViewPlugin.fromClass(
 
     public constructor(view: EditorView) {
       this.decorations = buildDecorations(view);
+      setImageUriClearCallback(() => bumpImageCacheVersion(view));
+    }
+
+    public destroy(): void {
+      setImageUriClearCallback(undefined);
     }
 
     public update(update: ViewUpdate): void {
@@ -699,7 +710,8 @@ function buildImageDecorations(from: number, to: number, context: DecorationCont
       from: imageFrom,
       to: imageTo,
       width: match[3] ? Number(match[3]) : undefined,
-      height: match[4] ? Number(match[4]) : undefined
+      height: match[4] ? Number(match[4]) : undefined,
+      cacheVersion: imageCacheVersion
     });
 
     if (isEditing(context.state, imageFrom, imageTo, context.hasFocus, true)) {
@@ -714,7 +726,8 @@ function buildImageDecorations(from: number, to: number, context: DecorationCont
             to: imageTo,
             block: true,
             width: match[3] ? Number(match[3]) : undefined,
-            height: match[4] ? Number(match[4]) : undefined
+            height: match[4] ? Number(match[4]) : undefined,
+            cacheVersion: imageCacheVersion
           })
         }).range(imageTo)
       );

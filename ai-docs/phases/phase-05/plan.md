@@ -188,3 +188,25 @@ Same pattern as P5-T1 with `` `...` ``.
 **Done when:** Drag `report.pdf` into editor → `[report.pdf](./report.pdf)` inserted.
 
 ---
+
+## P5-T14: Live image refresh on file-system change
+
+**Goal:** When an image file referenced in the document is deleted, created, or renamed while the editor is open, MarkdownWeave automatically updates the decoration — showing the missing-image placeholder for deleted files and the rendered preview for newly available files — without requiring a document reload.
+
+**Steps:**
+
+1. In `src/markdownWeaveEditor.ts`, extend the existing `onDidCreateFiles`, `onDidDeleteFiles`, and `onDidRenameFiles` handlers to also post `{ type: 'clearImageUriCache' }` to the webview alongside the existing `invalidateWikiLinkCache()` call.
+2. In `webview-ui/src/bridge.ts`:
+   - Add `HostClearImageUriCacheMessage` type (`{ type: 'clearImageUriCache' }`).
+   - Add it to the `HostMessage` union.
+   - Add an `imageUriClearCallback` variable and `setImageUriClearCallback` export (mirrors the wiki link pattern).
+   - Handle the message in `handleBridgeMessage`: clear `imageUriCache`, `pendingImageUriRequests`, `imageUriHandlers`, then call the callback.
+3. In `webview-ui/src/widgets/ImageWidget.ts`, add `cacheVersion: number` to `ImageWidgetOptions` and include it in `eq()` so CM6 recreates widget DOM (and re-resolves the URI) whenever the version changes.
+4. In `webview-ui/src/decorations/index.ts`:
+   - Add a module-level `imageCacheVersion` counter and a `bumpImageCacheVersion(view)` function that increments it and dispatches an empty CM6 transaction to trigger a decoration rebuild.
+   - Pass `cacheVersion: imageCacheVersion` to every `ImageWidget` constructor call in `buildImageDecorations`.
+   - In the `markdownDecorations` plugin constructor, call `setImageUriClearCallback(() => bumpImageCacheVersion(view))`. Add a `destroy()` method that calls `setImageUriClearCallback(undefined)`.
+
+**Done when:** Open a document with an image preview rendered. Delete the image file from the VS Code Explorer sidebar. Within ~1 second, the editor shows the missing-image placeholder without reloading. Restore the file — the rendered preview reappears automatically.
+
+---

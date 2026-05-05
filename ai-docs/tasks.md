@@ -91,6 +91,7 @@
 - [x] P5-T8: Register all shortcuts as VS Code commands with `when` clause
 - [x] P5-T9: Image paste from clipboard (save next to document or in configured subfolder, insert markdown)
 - [x] P5-T10: `pasteImageFolder` setting (relative to document, default: same dir) + auto-create folder if missing
+- [x] P5-T14: Live image refresh on file-system change (delete/create/rename clears URI cache and re-renders)
 - [ ] ~~P5-T11: Image file drag-and-drop (link in place, insert `![](relative/path)`)~~
 - [ ] ~~P5-T12: Markdown file drag-and-drop (insert `[name](relative/path)`)~~
 - [ ] ~~P5-T13: Generic file drag-and-drop (insert `[name](relative/path)`)~~

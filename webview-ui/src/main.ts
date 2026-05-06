@@ -93,6 +93,11 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
     return;
   }
 
+  if (message.type === 'syncScrollToLine') {
+    editor?.syncScrollToLine(message.line);
+    return;
+  }
+
   if (message.type === 'imageInserted') {
     editor?.insertAtCursor(message.markdownText);
     return;

@@ -111,13 +111,13 @@
 
 ## Phase 7: Side-by-Side Mode
 
-[Task Details](./phases/phase-07/plan.md)
+[Task Details](./phases/phase-07/plan.md) | [Decisions](./phases/phase-07/decisions.md)
 
-- [ ] P7-T1: `markdownWeave.openSideBySide` command implementation
-- [ ] P7-T2: Open split layout: left = VS Code native text editor, right = MarkdownWeave preview
-- [ ] P7-T3: Source-map based scroll sync (Lezer tree heading/block positions)
-- [ ] P7-T4: Bidirectional scroll sync (editor → preview and preview → editor)
-- [ ] P7-T5: Editor toolbar button + command palette entry
+- [x] P7-T1: `markdownWeave.openSideBySide` command implementation
+- [x] P7-T2: Open split layout: left = VS Code native text editor, right = MarkdownWeave preview
+- [x] P7-T3: Source-map based scroll sync (Lezer tree heading/block positions)
+- [x] P7-T4: Bidirectional scroll sync (editor → preview and preview → editor)
+- [x] P7-T5: Editor toolbar button + command palette entry
 
 ## Phase 8: Theming & Customization
 

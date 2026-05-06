@@ -5,7 +5,7 @@ import { Annotation, Compartment, EditorSelection, EditorState } from '@codemirr
 import { drawSelection, EditorView, keymap, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import type { SyntaxNode } from '@lezer/common';
 import { GFM } from '@lezer/markdown';
-import { postEdit, postHeadings, postCursorLine, postPasteImagesBatch, setPersistedState, type EditorIndentation, type PersistedState, type WebviewEditChange } from './bridge';
+import { postEdit, postHeadings, postCursorLine, postPasteImagesBatch, postSyncScrollFromPreview, setPersistedState, type EditorIndentation, type PersistedState, type WebviewEditChange } from './bridge';
 import { extractHeadings, type HeadingItem } from './headings';
 import { setSelectionRevealState } from './decorations/selectionUtils';
 import { wikiLinkExtension } from './wikiLink/parser';
@@ -24,6 +24,8 @@ const STATE_DEBOUNCE_MS = 200;
 const CURSOR_SCROLL_MARGIN = 32;
 const HEADINGS_DEBOUNCE_MS = 300;
 const CURSOR_LINE_THROTTLE_MS = 20;
+const SCROLL_SYNC_THROTTLE_MS = 50;
+const SCROLL_SYNC_SUPPRESSION_MS = 250;
 const cursorViewportMeasureKey = {};
 
 const externalUpdate = Annotation.define<boolean>();
@@ -41,6 +43,7 @@ export type MarkdownEditor = {
   getSelectedText(): string;
   scrollToHeading(heading: string): void;
   scrollToLine(line: number): void;
+  syncScrollToLine(line: number): void;
   insertAtCursor(text: string): void;
   runCommand(name: string): void;
   destroy(): void;
@@ -58,6 +61,9 @@ export function createMarkdownEditor(
   let cursorLineTimer: number | undefined;
   let pendingCursorLine: number | undefined;
   let pendingCM6Command: { name: string; timeout: number } | undefined;
+  let scrollSyncTimer: number | undefined;
+  let suppressScrollSyncUntil = 0;
+  let lastPostedScrollLine: number | undefined;
   let indentation = normalizeIndentation(initialIndentation);
   parent.style.setProperty('--mw-tab-size', String(indentation.tabSize));
 
@@ -135,6 +141,10 @@ export function createMarkdownEditor(
             queueStateSave();
           }
 
+          if (update.viewportChanged) {
+            queuePreviewScrollSync();
+          }
+
           if (update.docChanged) {
             if (headingsTimer) {
               clearTimeout(headingsTimer);
@@ -170,6 +180,7 @@ export function createMarkdownEditor(
     });
   });
   observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  view.scrollDOM.addEventListener('scroll', handlePreviewScroll);
 
   function forwardDocumentChanges(update: ViewUpdate): void {
     if (!update.docChanged || update.transactions.some((transaction) => transaction.annotation(externalUpdate))) {
@@ -265,6 +276,20 @@ export function createMarkdownEditor(
     });
   }
 
+  function syncScrollToLine(line: number): void {
+    requestAnimationFrame(() => {
+      const doc = view.state.doc;
+      const clampedLine = Math.max(1, Math.min(line, doc.lines));
+      const lineObj = doc.line(clampedLine);
+      suppressScrollSyncUntil = Date.now() + SCROLL_SYNC_SUPPRESSION_MS;
+      view.dispatch({
+        effects: EditorView.scrollIntoView(lineObj.from, { y: 'start', yMargin: getBreadcrumbScrollMargin() }),
+        annotations: externalUpdate.of(true)
+      });
+      keepPositionBelowBreadcrumb(lineObj.from);
+    });
+  }
+
   function queueStateSave(): void {
     if (stateTimer) {
       clearTimeout(stateTimer);
@@ -300,6 +325,35 @@ export function createMarkdownEditor(
       postCursorLine(latestLine);
       onCursorLineChange?.(latestLine);
     }, CURSOR_LINE_THROTTLE_MS);
+  }
+
+  function handlePreviewScroll(): void {
+    queuePreviewScrollSync();
+  }
+
+  function queuePreviewScrollSync(): void {
+    if (Date.now() < suppressScrollSyncUntil) {
+      return;
+    }
+
+    if (scrollSyncTimer !== undefined) {
+      return;
+    }
+
+    scrollSyncTimer = window.setTimeout(() => {
+      scrollSyncTimer = undefined;
+      if (Date.now() < suppressScrollSyncUntil) {
+        return;
+      }
+
+      const line = getTopVisibleLine(view);
+      if (line === lastPostedScrollLine) {
+        return;
+      }
+
+      lastPostedScrollLine = line;
+      postSyncScrollFromPreview(line);
+    }, SCROLL_SYNC_THROTTLE_MS);
   }
 
   function keepPositionBelowBreadcrumb(position: number): void {
@@ -354,6 +408,7 @@ export function createMarkdownEditor(
     },
     scrollToHeading,
     scrollToLine,
+    syncScrollToLine,
     insertAtCursor(text: string): void {
       const pos = view.state.selection.main.head;
       view.dispatch({
@@ -396,11 +451,15 @@ export function createMarkdownEditor(
       if (cursorLineTimer) {
         clearTimeout(cursorLineTimer);
       }
+      if (scrollSyncTimer) {
+        clearTimeout(scrollSyncTimer);
+      }
       pendingCursorLine = undefined;
       if (pendingCM6Command) {
         clearTimeout(pendingCM6Command.timeout);
       }
 
+      view.scrollDOM.removeEventListener('scroll', handlePreviewScroll);
       observer.disconnect();
       view.destroy();
     }
@@ -484,6 +543,18 @@ export function createMarkdownEditor(
     return true;
   }
 
+}
+
+function getTopVisibleLine(view: EditorView): number {
+  const scrollRect = view.scrollDOM.getBoundingClientRect();
+  const breadcrumb = document.getElementById('breadcrumb');
+  const breadcrumbBottom =
+    breadcrumb && !breadcrumb.hidden && breadcrumb.textContent
+      ? breadcrumb.getBoundingClientRect().bottom
+      : scrollRect.top;
+  const visibleTop = Math.max(scrollRect.top, breadcrumbBottom + 1);
+  const block = view.lineBlockAtHeight(Math.max(0, visibleTop - view.documentTop));
+  return view.state.doc.lineAt(block.from).number;
 }
 
 type ParsedListLine = {

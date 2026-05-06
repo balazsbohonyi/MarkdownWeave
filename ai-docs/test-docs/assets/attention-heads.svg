@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="420" viewBox="0 0 960 420" role="img" aria-labelledby="title desc">
+  <title id="title">Multi-head attention sketch</title>
+  <desc id="desc">A local SVG fixture showing tokens feeding three attention heads and being concatenated.</desc>
+  <rect width="960" height="420" fill="#f8fafc"/>
+  <g font-family="Segoe UI, Arial, sans-serif" fill="#0f172a">
+    <text x="480" y="44" text-anchor="middle" font-size="28" font-weight="700">Multi-Head Attention Fixture</text>
+    <text x="480" y="74" text-anchor="middle" font-size="15">Local image asset for Markdown Weave image preview and resize tests</text>
+  </g>
+  <g stroke="#334155" stroke-width="2" fill="none">
+    <path d="M150 120 C250 120 250 120 350 120"/>
+    <path d="M150 200 C250 200 250 200 350 200"/>
+    <path d="M150 280 C250 280 250 280 350 280"/>
+    <path d="M610 120 C710 120 710 200 810 200"/>
+    <path d="M610 200 C710 200 710 200 810 200"/>
+    <path d="M610 280 C710 280 710 200 810 200"/>
+  </g>
+  <g font-family="Segoe UI, Arial, sans-serif" font-size="16" fill="#0f172a">
+    <g>
+      <rect x="54" y="96" width="96" height="48" rx="6" fill="#dbeafe" stroke="#2563eb"/>
+      <text x="102" y="126" text-anchor="middle">token t-1</text>
+    </g>
+    <g>
+      <rect x="54" y="176" width="96" height="48" rx="6" fill="#dbeafe" stroke="#2563eb"/>
+      <text x="102" y="206" text-anchor="middle">token t</text>
+    </g>
+    <g>
+      <rect x="54" y="256" width="96" height="48" rx="6" fill="#dbeafe" stroke="#2563eb"/>
+      <text x="102" y="286" text-anchor="middle">token t+1</text>
+    </g>
+    <g>
+      <rect x="350" y="88" width="260" height="64" rx="8" fill="#dcfce7" stroke="#16a34a"/>
+      <text x="480" y="126" text-anchor="middle">head 1: local syntax</text>
+    </g>
+    <g>
+      <rect x="350" y="168" width="260" height="64" rx="8" fill="#fef3c7" stroke="#d97706"/>
+      <text x="480" y="206" text-anchor="middle">head 2: long-range cue</text>
+    </g>
+    <g>
+      <rect x="350" y="248" width="260" height="64" rx="8" fill="#fae8ff" stroke="#a21caf"/>
+      <text x="480" y="286" text-anchor="middle">head 3: section role</text>
+    </g>
+    <g>
+      <rect x="810" y="160" width="96" height="80" rx="8" fill="#e0f2fe" stroke="#0284c7"/>
+      <text x="858" y="194" text-anchor="middle">concat</text>
+      <text x="858" y="218" text-anchor="middle">+ W^O</text>
+    </g>
+  </g>
+</svg>

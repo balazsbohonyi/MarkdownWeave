@@ -86,6 +86,11 @@ type WebviewCursorLineMessage = {
   line: number;
 };
 
+type WebviewSyncScrollFromPreviewMessage = {
+  type: 'syncScrollFromPreview';
+  line: number;
+};
+
 type WebviewMessage =
   | WebviewReadyMessage
   | WebviewEditMessage
@@ -97,7 +102,8 @@ type WebviewMessage =
   | WebviewPasteImageMessage
   | WebviewPasteImagesBatchMessage
   | WebviewHeadingsMessage
-  | WebviewCursorLineMessage;
+  | WebviewCursorLineMessage
+  | WebviewSyncScrollFromPreviewMessage;
 
 const DOCUMENT_SYNC_DEBOUNCE_MS = 200;
 
@@ -107,12 +113,25 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
   private static readonly openPanels = new Map<string, vscode.WebviewPanel>();
   private static readonly pendingHeadings = new Map<string, string>();
   private static _activePanel: vscode.WebviewPanel | undefined;
+  private static _activeUri: vscode.Uri | undefined;
 
   public static outlineProvider: OutlineProvider | undefined;
   public static treeView: vscode.TreeView<HeadingItem> | undefined;
+  public static previewScrollHandler:
+    | ((uri: vscode.Uri, panel: vscode.WebviewPanel, line: number) => void)
+    | undefined;
+  public static activePanelChangeHandler: (() => void) | undefined;
 
   public static get activePanel(): vscode.WebviewPanel | undefined {
     return MarkdownWeaveEditorProvider._activePanel;
+  }
+
+  public static get activeUri(): vscode.Uri | undefined {
+    return MarkdownWeaveEditorProvider._activeUri;
+  }
+
+  public static getPanel(uri: vscode.Uri): vscode.WebviewPanel | undefined {
+    return MarkdownWeaveEditorProvider.openPanels.get(uri.toString());
   }
 
   public static sendCommandToActive(command: string): void {
@@ -151,12 +170,16 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
     MarkdownWeaveEditorProvider.openPanels.set(uriKey, webviewPanel);
     if (webviewPanel.active) {
       MarkdownWeaveEditorProvider._activePanel = webviewPanel;
+      MarkdownWeaveEditorProvider._activeUri = document.uri;
+      MarkdownWeaveEditorProvider.activePanelChangeHandler?.();
     }
     disposables.push({ dispose: () => {
       MarkdownWeaveEditorProvider.openPanels.delete(uriKey);
       if (MarkdownWeaveEditorProvider._activePanel === webviewPanel) {
         MarkdownWeaveEditorProvider._activePanel = undefined;
+        MarkdownWeaveEditorProvider._activeUri = undefined;
       }
+      MarkdownWeaveEditorProvider.activePanelChangeHandler?.();
     }});
 
     const postDocumentContent = (type: 'init' | 'update', source: 'extension' | 'initial'): void => {
@@ -473,8 +496,15 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
         if (message.type === 'cursorLine') {
           if (MarkdownWeaveEditorProvider._activePanel === webviewPanel || webviewPanel.visible) {
             MarkdownWeaveEditorProvider._activePanel = webviewPanel;
+            MarkdownWeaveEditorProvider._activeUri = document.uri;
+            MarkdownWeaveEditorProvider.activePanelChangeHandler?.();
             revealHeadingForLine(message.line);
           }
+          return;
+        }
+
+        if (message.type === 'syncScrollFromPreview') {
+          MarkdownWeaveEditorProvider.previewScrollHandler?.(document.uri, webviewPanel, message.line);
           return;
         }
 
@@ -482,10 +512,14 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
       webviewPanel.onDidChangeViewState((e) => {
         if (e.webviewPanel.active) {
           MarkdownWeaveEditorProvider._activePanel = webviewPanel;
+          MarkdownWeaveEditorProvider._activeUri = document.uri;
           MarkdownWeaveEditorProvider.outlineProvider?.setHeadings(lastKnownHeadings);
+          MarkdownWeaveEditorProvider.activePanelChangeHandler?.();
         } else if (MarkdownWeaveEditorProvider._activePanel === webviewPanel) {
           MarkdownWeaveEditorProvider._activePanel = undefined;
+          MarkdownWeaveEditorProvider._activeUri = undefined;
           MarkdownWeaveEditorProvider.outlineProvider?.setHeadings([]);
+          MarkdownWeaveEditorProvider.activePanelChangeHandler?.();
         }
       }),
       vscode.workspace.onDidCreateFiles(() => {

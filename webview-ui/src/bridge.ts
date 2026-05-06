@@ -77,6 +77,11 @@ export type HostScrollToLineMessage = {
   line: number;
 };
 
+export type HostSyncScrollToLineMessage = {
+  type: 'syncScrollToLine';
+  line: number;
+};
+
 export type WebviewHeadingsMessage = {
   type: 'headings';
   items: Array<{ level: 1 | 2 | 3 | 4 | 5 | 6; text: string; line: number; from: number }>;
@@ -110,6 +115,7 @@ export type HostMessage =
   | HostClearWikiLinkCacheMessage
   | HostScrollToHeadingMessage
   | HostScrollToLineMessage
+  | HostSyncScrollToLineMessage
   | HostImageInsertedMessage
   | HostClearImageUriCacheMessage
   | HostRunCommandMessage;
@@ -284,6 +290,10 @@ export function postHeadings(items: WebviewHeadingsMessage['items']): void {
 
 export function postCursorLine(line: number): void {
   vscode.postMessage({ type: 'cursorLine', line });
+}
+
+export function postSyncScrollFromPreview(line: number): void {
+  vscode.postMessage({ type: 'syncScrollFromPreview', line });
 }
 
 export function handleBridgeMessage(message: HostMessage): boolean {

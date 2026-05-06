@@ -36,8 +36,57 @@
     "commands": [
       {
         "command": "markdownWeave.openEditor",
+        "title": "Open",
+        "category": "Markdown Weave",
+        "icon": {
+          "light": "./media/preview-light.svg",
+          "dark": "./media/preview-dark.svg"
+        }
+      },
+      {
+        "command": "markdownWeave.openEditorContext",
         "title": "Open with Markdown Weave",
-        "category": "Markdown Weave"
+        "category": "Markdown Weave",
+        "icon": {
+          "light": "./media/preview-light.svg",
+          "dark": "./media/preview-dark.svg"
+        }
+      },
+      {
+        "command": "markdownWeave.openSideBySide",
+        "title": "Open to the Side",
+        "category": "Markdown Weave",
+        "icon": {
+          "light": "./media/preview-to-side-light.svg",
+          "dark": "./media/preview-to-side-dark.svg"
+        }
+      },
+      {
+        "command": "markdownWeave.openSideBySideToolbar",
+        "title": "Open with Markdown Weave to the Side",
+        "category": "Markdown Weave",
+        "icon": {
+          "light": "./media/preview-to-side-light.svg",
+          "dark": "./media/preview-to-side-dark.svg"
+        }
+      },
+      {
+        "command": "markdownWeave.openSideBySideContext",
+        "title": "Open with Markdown Weave to the Side",
+        "category": "Markdown Weave",
+        "icon": {
+          "light": "./media/preview-to-side-light.svg",
+          "dark": "./media/preview-to-side-dark.svg"
+        }
+      },
+      {
+        "command": "markdownWeave.showSource",
+        "title": "Show Source",
+        "category": "Markdown Weave",
+        "icon": {
+          "light": "./media/show-source-light.svg",
+          "dark": "./media/show-source-dark.svg"
+        }
       },
       {
         "command": "markdownWeave.toggleBold",
@@ -157,9 +206,50 @@
     "menus": {
       "explorer/context": [
         {
-          "command": "markdownWeave.openEditor",
+          "command": "markdownWeave.openEditorContext",
           "when": "resourceExtname =~ /\\.(md|markdown)$/",
-          "group": "navigation"
+          "group": "navigation@1"
+        },
+        {
+          "command": "markdownWeave.openSideBySideContext",
+          "when": "resourceExtname =~ /\\.(md|markdown)$/",
+          "group": "navigation@2"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "markdownWeave.openEditorContext",
+          "when": "editorLangId == 'markdown' && !notebookEditorFocused",
+          "alt": "markdownWeave.openSideBySideToolbar",
+          "group": "navigation@1"
+        },
+        {
+          "command": "markdownWeave.showSource",
+          "when": "activeCustomEditorId == 'markdownWeave.editor' && markdownWeave.activeStandaloneEditor",
+          "group": "navigation@0"
+        },
+        {
+          "command": "markdownWeave.openSideBySide",
+          "when": "activeCustomEditorId == 'markdownWeave.editor' && markdownWeave.activeStandaloneEditor",
+          "group": "navigation@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "markdownWeave.showSource",
+          "when": "false"
+        },
+        {
+          "command": "markdownWeave.openEditorContext",
+          "when": "false"
+        },
+        {
+          "command": "markdownWeave.openSideBySideToolbar",
+          "when": "false"
+        },
+        {
+          "command": "markdownWeave.openSideBySideContext",
+          "when": "false"
         }
       ]
     }

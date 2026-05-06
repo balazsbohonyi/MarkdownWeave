@@ -26,7 +26,7 @@ source text.
 
 ## Current Status
 
-Completed through Phase 6:
+Completed through Phase 7:
 
 - VS Code custom editor registration for `.md` and `.markdown` files.
 - Webview-based editor shell with extension-host/webview messaging.
@@ -48,17 +48,31 @@ Completed through Phase 6:
   active-heading synchronization as the cursor moves.
 - Webview breadcrumb navigation with heading path display, sibling dropdowns,
   click-to-scroll behavior, and automatic hiding when a document has no headings.
+- Side-by-side mode that opens the native Markdown source editor on the left
+  and Markdown Weave on the right, with bidirectional passive scroll sync.
+- Native Markdown editor toolbar access for opening the current file with
+  Markdown Weave, with Alt-click support for opening Markdown Weave to the side.
+- Explorer context menu actions for opening directly with Markdown Weave or
+  opening Markdown Weave to the side.
+- Standalone Markdown Weave toolbar actions for showing the native source and
+  opening the document in side-by-side mode.
 
 Still planned:
 
-- Side-by-side mode, theming, settings, performance hardening, and publishing
-  automation.
+- Theming, settings, performance hardening, and publishing automation.
 
 ## Usage
 
 1. Open a Markdown file in VS Code.
 2. Use the Explorer context menu command **Open with Markdown Weave**.
 3. Edit directly in the rendered document.
+
+You can also use **Open with Markdown Weave to the Side** from the Explorer
+context menu or **Markdown Weave: Open to the Side** from the Command Palette to
+open the native Markdown source editor on the left and Markdown Weave on the
+right. Markdown files opened in VS Code's native editor also show a Markdown
+Weave toolbar button; the default click opens directly with Markdown Weave, and
+Alt-click opens Markdown Weave to the side.
 
 When the cursor enters a decorated Markdown element, Markdown Weave reveals the
 raw syntax needed for editing. When the cursor leaves, the rendered decoration
@@ -95,6 +109,10 @@ The beta currently supports live decorations for:
   click-to-scroll navigation, active heading highlight, and debounced refresh.
 - Breadcrumb bar inside the editor showing the current heading path, with
   click-to-scroll segments and sibling dropdown navigation.
+- Side-by-side source/editing mode with the native Markdown source editor on the
+  left, Markdown Weave on the right, and bidirectional scroll synchronization.
+- Standalone Markdown Weave toolbar **Show Source** action that opens or reveals
+  the canonical Markdown source in VS Code's native editor.
 
 Existing Typora-style Markdown image size suffixes are supported:
 
@@ -151,8 +169,11 @@ built-in Markdown preview can render the resized image:
 | Click-to-scroll outline navigation | Implemented |
 | Active heading synchronization | Implemented |
 | Breadcrumb navigation | Implemented |
-| Side-by-side source and preview mode | Planned |
-| Bidirectional scroll synchronization | Planned |
+| Side-by-side source and Markdown Weave mode | Implemented |
+| Bidirectional scroll synchronization | Implemented |
+| Native editor toolbar action for opening with Markdown Weave | Implemented |
+| Explorer context action for opening Markdown Weave to the side | Implemented |
+| Standalone Markdown Weave Show Source toolbar action | Implemented |
 | Light, dark, and sepia themes | Planned |
 | Custom CSS loading and hot reload | Planned |
 | User settings and live configuration forwarding | Planned |

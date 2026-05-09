@@ -25,20 +25,18 @@
 
   /* ─── Headings ────────────────────────────────────────────────── */
   --mw-heading-color: #2c1a0e;
-  --mw-h6-color: #8a7060;
 
   /* ─── Links ───────────────────────────────────────────────────── */
   --mw-link-color: #8b5e3c;
   --mw-link-broken-color: #a83232;
 
   /* ─── Blockquotes ─────────────────────────────────────────────── */
-  --mw-blockquote-border: #c8956c;
   --mw-blockquote-fg: #6b4f38;
-  --mw-blockquote-bg: #faf0dc;
 
   /* ─── Inline code ─────────────────────────────────────────────── */
   --mw-inline-code-bg: #f0e6ce;
   --mw-inline-code-fg: #2c1a0e;
+  --mw-inline-code-border: #ddd0b8;
 
   /* ─── Tables ──────────────────────────────────────────────────── */
   --mw-table-border: #ddd0b8;
@@ -73,5 +71,5 @@
   /* ─── Semantic ────────────────────────────────────────────────── */
   --mw-error-color: #a83232;
   --mw-description-color: #8a7060;
-  --mw-highlight-bg: #f5e0a0;
+  --mw-highlight-bg: #f5c518;
 }

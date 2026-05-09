@@ -699,9 +699,11 @@ function listItemDecoration(node: SyntaxNodeRef, context: DecorationContext): Ra
   } else {
     const renderedMarker = context.listMarkers.get(node.from) ?? '\u2022';
     const markerReplacement = taskMarker && !/^\d+\.$/.test(renderedMarker) ? '' : renderedMarker;
+    const markerKind: 'bullet' | 'ordered' | 'task' =
+      markerReplacement === '' ? 'task' : /^\d+\.$/.test(markerReplacement) ? 'ordered' : 'bullet';
     ranges.push(
       Decoration.replace({
-        widget: new ListMarkerWidget(markerReplacement),
+        widget: new ListMarkerWidget(markerReplacement, markerKind),
         inclusive: false
       }).range(marker.from, markerTo)
     );

@@ -25,20 +25,18 @@
 
   /* ─── Headings ────────────────────────────────────────────────── */
   --mw-heading-color: #0f172a;
-  --mw-h6-color: #64748b;
 
   /* ─── Links ───────────────────────────────────────────────────── */
   --mw-link-color: #2563eb;
   --mw-link-broken-color: #dc2626;
 
   /* ─── Blockquotes ─────────────────────────────────────────────── */
-  --mw-blockquote-border: #93c5fd;
   --mw-blockquote-fg: #475569;
-  --mw-blockquote-bg: #f0f7ff;
 
   /* ─── Inline code ─────────────────────────────────────────────── */
-  --mw-inline-code-bg: #f1f5f9;
+  --mw-inline-code-bg: #f8fafc;
   --mw-inline-code-fg: #0f172a;
+  --mw-inline-code-border: #e2e8f0;
 
   /* ─── Tables ──────────────────────────────────────────────────── */
   --mw-table-border: #e2e8f0;
@@ -73,5 +71,5 @@
   /* ─── Semantic ────────────────────────────────────────────────── */
   --mw-error-color: #dc2626;
   --mw-description-color: #64748b;
-  --mw-highlight-bg: #fef9c3;
+  --mw-highlight-bg: #ffd700;
 }

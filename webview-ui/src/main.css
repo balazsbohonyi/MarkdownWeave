@@ -271,8 +271,9 @@ body.mw-breadcrumb-hidden #editor {
 }
 
 .mw-inline-code {
-  padding: 0 0.28em;
+  padding: 0.15em 0.21em;
   border-radius: 4px;
+  border: 1px solid var(--mw-inline-code-border);
   background: var(--mw-inline-code-bg);
   color: var(--mw-inline-code-fg);
   font-family: var(--mw-font-code);
@@ -301,24 +302,63 @@ body.mw-breadcrumb-hidden #editor {
 }
 
 .mw-blockquote {
-  border-left: 3px solid var(--mw-blockquote-border);
+  border-left: 3px solid var(--mw-blockquote-fg);
   color: var(--mw-blockquote-fg);
-  background: var(--mw-blockquote-bg);
 }
 
 .cm-line.mw-blockquote {
   padding-left: 0.7em;
+  padding-top: 0.1em;
+  padding-bottom: 0.1em;
 }
 
-.mw-blockquote-depth-2 {
-  border-left-width: 5px;
+.cm-line.mw-blockquote.mw-blockquote-depth-2 {
+  position: relative;
+  padding-left: calc(1.5em + 0.7em);
 }
 
-.mw-blockquote-depth-3,
-.mw-blockquote-depth-4,
-.mw-blockquote-depth-5,
-.mw-blockquote-depth-6 {
-  border-left-width: 7px;
+.cm-line.mw-blockquote.mw-blockquote-depth-2::before {
+  content: '';
+  position: absolute;
+  left: 1.5em;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--mw-blockquote-fg);
+}
+
+.cm-line.mw-blockquote.mw-blockquote-depth-3,
+.cm-line.mw-blockquote.mw-blockquote-depth-4,
+.cm-line.mw-blockquote.mw-blockquote-depth-5,
+.cm-line.mw-blockquote.mw-blockquote-depth-6 {
+  position: relative;
+  padding-left: calc(3em + 0.7em);
+}
+
+.cm-line.mw-blockquote.mw-blockquote-depth-3::before,
+.cm-line.mw-blockquote.mw-blockquote-depth-4::before,
+.cm-line.mw-blockquote.mw-blockquote-depth-5::before,
+.cm-line.mw-blockquote.mw-blockquote-depth-6::before {
+  content: '';
+  position: absolute;
+  left: 1.5em;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--mw-blockquote-fg);
+}
+
+.cm-line.mw-blockquote.mw-blockquote-depth-3::after,
+.cm-line.mw-blockquote.mw-blockquote-depth-4::after,
+.cm-line.mw-blockquote.mw-blockquote-depth-5::after,
+.cm-line.mw-blockquote.mw-blockquote-depth-6::after {
+  content: '';
+  position: absolute;
+  left: 3em;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--mw-blockquote-fg);
 }
 
 .mw-hr-wrapper {
@@ -337,6 +377,7 @@ body.mw-breadcrumb-hidden #editor {
 
 .mw-list-line {
   padding-left: 0.2em;
+  margin-bottom: 0.2em;
 }
 
 .mw-list-indent-1 {
@@ -358,9 +399,27 @@ body.mw-breadcrumb-hidden #editor {
 
 .mw-list-marker {
   display: inline-block;
+  position: relative;
   width: 1.6em;
+  padding-right: 0.5em;
   color: var(--mw-list-marker-color);
   text-align: right;
+}
+
+.mw-list-marker-bullet {
+  color: transparent;
+}
+
+.mw-list-marker-bullet::before {
+  content: '';
+  position: absolute;
+  right: 0.5em;
+  top: 50%;
+  width: 0.65em;
+  height: 0.1em;
+  border-radius: 1px;
+  background: var(--mw-list-marker-color);
+  transform: translateY(-50%);
 }
 
 .mw-list-marker-raw {
@@ -379,11 +438,26 @@ body.mw-breadcrumb-hidden #editor {
 }
 
 .mw-checkbox {
-  width: 1em;
-  height: 1em;
-  margin: 0 0.45em 0 0.1em;
-  vertical-align: -0.15em;
-  accent-color: var(--mw-link-color);
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.35em;
+  height: 1.35em;
+  margin: 0 0.5em 0 0.1em;
+  vertical-align: -0.3em;
+  border: 1.5px solid var(--mw-list-marker-color);
+  border-radius: 50%;
+  cursor: pointer;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 70%;
+  flex-shrink: 0;
+}
+
+.mw-checkbox:checked {
+  border-color: var(--mw-checkbox-color);
+  background-color: var(--mw-checkbox-color);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 12 12' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2 6.5l2.5 2.5 5.5-5.5' stroke='white' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 .mw-image-widget {
@@ -945,7 +1019,9 @@ body.mw-mermaid-resize-handle-hidden-after-resize .mw-mermaid:hover > .mw-mermai
 .mw-html-mark,
 .mw-html-block mark {
   background: var(--mw-highlight-bg);
-  color: inherit;
+  color: #111111;
+  border-radius: 3px;
+  padding: 0.1em 0.15em;
 }
 
 .mw-html-sup,

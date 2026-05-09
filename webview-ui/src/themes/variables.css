@@ -37,7 +37,7 @@
 
   /* ─── Headings ────────────────────────────────────────────────── */
   --mw-heading-color: var(--vscode-editor-foreground);
-  --mw-h6-color: var(--vscode-descriptionForeground);
+  --mw-h6-color: var(--mw-heading-color);
 
   /* ─── Links ───────────────────────────────────────────────────── */
   --mw-link-color: var(--vscode-textLink-foreground);
@@ -51,6 +51,7 @@
   /* ─── Inline code ─────────────────────────────────────────────── */
   --mw-inline-code-bg: var(--vscode-textCodeBlock-background);
   --mw-inline-code-fg: var(--vscode-editor-foreground);
+  --mw-inline-code-border: var(--vscode-editorWidget-border, transparent);
 
   /* ─── Tables ──────────────────────────────────────────────────── */
   --mw-table-border: var(--vscode-editorWidget-border);
@@ -85,6 +86,7 @@
   --mw-hr-color: var(--vscode-editor-foreground);
   --mw-list-marker-color: var(--vscode-editorLineNumber-foreground);
   --mw-list-hover-bg: var(--vscode-list-hoverBackground);
+  --mw-checkbox-color: var(--mw-link-color);
 
   /* ─── Semantic ────────────────────────────────────────────────── */
   --mw-error-color: var(--vscode-errorForeground);

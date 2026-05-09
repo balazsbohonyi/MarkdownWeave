@@ -138,6 +138,7 @@
 - [ ] P9-T1: Register all settings in `contributes.configuration`
 - [ ] P9-T2: Settings listener (`onDidChangeConfiguration`) with live update
 - [ ] P9-T3: Settings forwarding to webview on change
+- [ ] P9-T4: Implement `markdownWeave.useBuiltInFonts` font toggle
 
 ## Phase 10: Performance & Large File Optimization
 

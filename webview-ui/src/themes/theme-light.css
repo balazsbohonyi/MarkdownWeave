@@ -13,8 +13,6 @@
   --mw-fg: #1a1a1a;
 
   /* ─── Typography ──────────────────────────────────────────────── */
-  --mw-font-body: 'Merriweather', Georgia, 'Times New Roman', serif;
-  --mw-font-heading: 'Inter', -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
   --mw-font-size-base: 16px;
   --mw-line-height: 1.75;
   /* Heading scale */

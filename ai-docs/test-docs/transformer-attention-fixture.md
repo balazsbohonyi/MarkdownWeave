@@ -1,7 +1,6 @@
 ---
 title: "A Reproducible Markdown Weave Fixture for Transformer Attention"
-authors:
-  - "Markdown Weave QA Working Note"
+authors: "Markdown Weave QA Working Note"
 domain: "machine-learning"
 tags: ["markdownweave", "fixture", "attention", "katex", "mermaid"]
 source_inspiration:

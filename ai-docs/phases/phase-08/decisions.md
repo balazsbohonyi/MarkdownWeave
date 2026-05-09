@@ -79,3 +79,15 @@ Original task IDs (P8-T1 through P8-T7) no longer match the original description
 **Decision:** `themeManager.ts` exports a `setThemeOverride(theme: MwTheme | 'auto')` function in addition to `initTheme()` and `observeThemeChanges()`.
 
 **Why:** Phase 9 will need to call this function when the user changes the `markdownWeave.theme` setting. Exporting it now avoids modifying `themeManager.ts` in Phase 9.
+
+### Breadcrumbs and dropdowns pin to VS Code UI font variables
+
+**Decision:** `#breadcrumb` and `.bc-dropdown` in `main.css` explicitly set `font-family: var(--vscode-font-family)` and `font-size: var(--vscode-font-size)`, overriding any inherited custom reading fonts.
+
+**Why:** Breadcrumbs are VS Code UI chrome, not document content. They should feel native to the VS Code interface, not adopt the reading-optimized typeface of the document being previewed. The redundant `font-size: 13px` on `.bc-sep` was also removed — it inherits from `#breadcrumb`.
+
+### Custom reading fonts (`--mw-font-body` / `--mw-font-heading`) are opt-in, not defaults
+
+**Decision:** The three theme files (light/dark/sepia) no longer set `--mw-font-body` or `--mw-font-heading`. Those variables fall through to the `variables.css` defaults, which pass through `--vscode-font-family`. The Merriweather + Inter pairing becomes opt-in via a Phase 9 setting (`markdownWeave.useBuiltInFonts`, boolean, default `false`).
+
+**Why:** Imposing opinionated fonts by default surprised users who expected the editor to look like the rest of VS Code. Opt-in is the correct model — users discover the enhanced typography when they want it. The `@font-face` declarations remain in the HTML template (browsers don't download unreferenced fonts), so Phase 9 only needs to set the CSS variables to activate them.

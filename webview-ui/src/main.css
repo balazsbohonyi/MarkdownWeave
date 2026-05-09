@@ -53,7 +53,8 @@ body {
   border-bottom: 1px solid var(--mw-breadcrumb-border);
   background: var(--mw-breadcrumb-bg);
   color: var(--mw-breadcrumb-fg);
-  font-size: 13px;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
   white-space: nowrap;
 }
 
@@ -72,7 +73,6 @@ body {
 
 .bc-sep {
   margin: 0 5px;
-  font-size: 13px;
   opacity: 0.5;
   user-select: none;
 }
@@ -124,6 +124,8 @@ body {
   background: var(--mw-widget-bg);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   list-style: none;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
 }
 
 .bc-dropdown-item {
@@ -135,7 +137,6 @@ body {
   background: transparent;
   color: var(--mw-fg);
   font: inherit;
-  font-size: 12px;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;

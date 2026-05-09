@@ -1,0 +1,93 @@
+/* MarkdownWeave CSS Variable System
+ *
+ * All --mw-* variables are defined here with defaults that map to VS Code's
+ * theme variables. When no [data-mw-theme] attribute is present on <html>
+ * (e.g. high-contrast mode), these defaults apply — VS Code's colors pass
+ * through unchanged.
+ *
+ * Theme stylesheets (theme-light.css, theme-dark.css, theme-sepia.css)
+ * override these via :root[data-mw-theme="..."] selectors.
+ *
+ * Pass-through variables (--mw-codeblock-*, --mw-font-code) are intentionally
+ * NOT overridden by theme stylesheets — code blocks always match VS Code.
+ */
+
+:root {
+  /* ─── Surface ─────────────────────────────────────────────────── */
+  --mw-bg: var(--vscode-editor-background);
+  --mw-fg: var(--vscode-editor-foreground);
+
+  /* ─── Typography ──────────────────────────────────────────────── */
+  /* Body and heading fonts. Theme stylesheets set these to bundled fonts.   */
+  /* In pass-through (no theme), they inherit VS Code's UI font family.      */
+  --mw-font-body: var(--vscode-font-family);
+  --mw-font-heading: var(--vscode-font-family);
+  /* Code font always follows VS Code's editor font — never theme-overridden */
+  --mw-font-code: var(--vscode-editor-font-family, monospace);
+  /* Base size/height. Theme stylesheets set these to reading-optimized values */
+  --mw-font-size-base: var(--vscode-editor-font-size, 14px);
+  --mw-line-height: 1.6;
+  /* Heading size scale */
+  --mw-h1-size: 2em;
+  --mw-h2-size: 1.5em;
+  --mw-h3-size: 1.25em;
+  --mw-h4-size: 1.12em;
+  --mw-h5-size: 1em;
+  --mw-h6-size: 0.95em;
+
+  /* ─── Headings ────────────────────────────────────────────────── */
+  --mw-heading-color: var(--vscode-editor-foreground);
+  --mw-h6-color: var(--vscode-descriptionForeground);
+
+  /* ─── Links ───────────────────────────────────────────────────── */
+  --mw-link-color: var(--vscode-textLink-foreground);
+  --mw-link-broken-color: var(--vscode-errorForeground);
+
+  /* ─── Blockquotes ─────────────────────────────────────────────── */
+  --mw-blockquote-border: var(--vscode-textBlockQuote-border, var(--vscode-editorWidget-border));
+  --mw-blockquote-fg: var(--vscode-textBlockQuote-foreground, var(--vscode-descriptionForeground));
+  --mw-blockquote-bg: var(--vscode-textBlockQuote-background, transparent);
+
+  /* ─── Inline code ─────────────────────────────────────────────── */
+  --mw-inline-code-bg: var(--vscode-textCodeBlock-background);
+  --mw-inline-code-fg: var(--vscode-editor-foreground);
+
+  /* ─── Tables ──────────────────────────────────────────────────── */
+  --mw-table-border: var(--vscode-editorWidget-border);
+  --mw-table-bg: var(--vscode-editor-background);
+  --mw-table-header-bg: var(--vscode-editor-lineHighlightBackground, var(--vscode-textCodeBlock-background));
+  --mw-table-stripe-bg: var(--vscode-list-hoverBackground, transparent);
+
+  /* ─── Code blocks (pass-through — never overridden by themes) ─── */
+  --mw-codeblock-bg: var(--vscode-textCodeBlock-background);
+  --mw-codeblock-border: var(--vscode-editorWidget-border, transparent);
+
+  /* ─── Editor chrome ───────────────────────────────────────────── */
+  --mw-selection-bg: var(--vscode-editor-selectionBackground);
+  --mw-cursor-color: var(--vscode-editorCursor-foreground);
+  --mw-gutter-bg: var(--vscode-editorGutter-background, var(--vscode-editor-background));
+  --mw-gutter-fg: var(--vscode-editorLineNumber-foreground);
+  --mw-gutter-border: var(--vscode-editorWidget-border, transparent);
+  --mw-line-highlight-bg: var(--vscode-editor-lineHighlightBackground, transparent);
+
+  /* ─── UI elements ─────────────────────────────────────────────── */
+  --mw-breadcrumb-bg: var(--vscode-editor-background);
+  --mw-breadcrumb-fg: var(--vscode-breadcrumb-foreground, var(--vscode-descriptionForeground));
+  --mw-breadcrumb-border: var(--vscode-editorWidget-border, transparent);
+  --mw-widget-bg: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  --mw-widget-border: var(--vscode-editorWidget-border);
+  --mw-button-border: var(--vscode-button-border, var(--vscode-editorWidget-border));
+  --mw-button-bg: var(--vscode-button-secondaryBackground, var(--vscode-editor-background));
+  --mw-button-fg: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
+  --mw-button-hover-bg: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
+  --mw-badge-bg: var(--vscode-badge-background, var(--vscode-textCodeBlock-background));
+  --mw-badge-fg: var(--vscode-badge-foreground, var(--vscode-editor-foreground));
+  --mw-hr-color: var(--vscode-editor-foreground);
+  --mw-list-marker-color: var(--vscode-editorLineNumber-foreground);
+  --mw-list-hover-bg: var(--vscode-list-hoverBackground);
+
+  /* ─── Semantic ────────────────────────────────────────────────── */
+  --mw-error-color: var(--vscode-errorForeground);
+  --mw-description-color: var(--vscode-descriptionForeground);
+  --mw-highlight-bg: var(--vscode-editor-findMatchHighlightBackground, #fff59d);
+}

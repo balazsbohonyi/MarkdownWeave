@@ -10,6 +10,10 @@ import {
 import { createMarkdownEditor, type MarkdownEditor } from './editor';
 import { extractHeadings, type HeadingItem } from './headings';
 import { Breadcrumb } from './breadcrumb';
+import { initTheme, observeThemeChanges } from './themes/themeManager';
+
+// Apply theme before creating the editor so CSS variables are correct on first paint
+initTheme();
 
 const app = document.getElementById('app');
 const editorMount = document.getElementById('editor');
@@ -20,6 +24,7 @@ let editor: MarkdownEditor | undefined;
 let breadcrumb: Breadcrumb | undefined;
 let currentHeadings: HeadingItem[] = [];
 let currentCursorLine = 1;
+let themeObserverStarted = false;
 
 if (!app || !editorMount) {
   throw new Error('MarkdownWeave editor mount point was not found.');
@@ -73,6 +78,11 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
     }
 
     setStatus(`Document loaded (${message.content.length} characters)`);
+
+    if (!themeObserverStarted) {
+      observeThemeChanges();
+      themeObserverStarted = true;
+    }
     return;
   }
 

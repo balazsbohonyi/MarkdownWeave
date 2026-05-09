@@ -121,15 +121,15 @@
 
 ## Phase 8: Theming & Customization
 
-[Task Details](./phases/phase-08/plan.md)
+[Task Details](./phases/phase-08/implementation.md) | [Decisions](./phases/phase-08/decisions.md)
 
-- [ ] P8-T1: Base theme CSS (CSS variables layered on VS Code vars)
-- [ ] P8-T2: Light theme variant
-- [ ] P8-T3: Dark theme variant
-- [ ] P8-T4: Sepia theme variant
-- [ ] P8-T5: `markdownWeave.theme` setting + auto-detection of `vscode-light`/`vscode-dark`
-- [ ] P8-T6: Custom CSS file loading (`markdownWeave.customCssPath`)
-- [ ] P8-T7: File watcher for custom CSS hot-reload
+- [x] P8-T1: CSS variable taxonomy + `variables.css` (all `--mw-*` defaults mapping to `--vscode-*`)
+- [x] P8-T2: Bundle Inter + Merriweather fonts (`media/fonts/*.woff2`, `@font-face` injected in webview HTML)
+- [x] P8-T3: Refactor `main.css` to use `--mw-*` variables (zero direct `--vscode-*` refs outside Shiki block)
+- [x] P8-T4: Refactor `editor.ts` CM6 theme to use `--mw-*` variables
+- [x] P8-T5: Create three reading-optimized theme stylesheets (light, dark, sepia)
+- [x] P8-T6: Theme application logic — auto-detect VS Code theme, set `data-mw-theme` on `<html>`, watch for changes
+- [x] P8-T7: Integration verified — build clean, TypeScript clean, Shiki pass-through intact
 
 ## Phase 9: Settings & Configuration
 

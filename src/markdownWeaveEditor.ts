@@ -577,6 +577,9 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
       vscode.Uri.joinPath(this.extensionUri, 'dist', 'mermaid', 'mermaid.esm.min.mjs')
     );
 
+    const fontsDir = vscode.Uri.joinPath(this.extensionUri, 'media', 'fonts');
+    const fontUri = (name: string) => webview.asWebviewUri(vscode.Uri.joinPath(fontsDir, name));
+
     return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -584,6 +587,14 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https: data:; style-src ${webview.cspSource} 'nonce-${nonce}'; font-src ${webview.cspSource}; script-src ${webview.cspSource} 'nonce-${nonce}';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="markdownweave-style-nonce" content="${nonce}">
+  <style nonce="${nonce}">
+    @font-face { font-family: 'Inter'; font-style: normal; font-weight: 400; font-display: swap; src: url('${fontUri('inter-regular.woff2')}') format('woff2'); }
+    @font-face { font-family: 'Inter'; font-style: normal; font-weight: 700; font-display: swap; src: url('${fontUri('inter-bold.woff2')}') format('woff2'); }
+    @font-face { font-family: 'Merriweather'; font-style: normal; font-weight: 400; font-display: swap; src: url('${fontUri('merriweather-regular.woff2')}') format('woff2'); }
+    @font-face { font-family: 'Merriweather'; font-style: italic; font-weight: 400; font-display: swap; src: url('${fontUri('merriweather-italic.woff2')}') format('woff2'); }
+    @font-face { font-family: 'Merriweather'; font-style: normal; font-weight: 700; font-display: swap; src: url('${fontUri('merriweather-bold.woff2')}') format('woff2'); }
+    @font-face { font-family: 'Merriweather'; font-style: italic; font-weight: 700; font-display: swap; src: url('${fontUri('merriweather-bold-italic.woff2')}') format('woff2'); }
+  </style>
   <link href="${styleUri}" rel="stylesheet">
   <title>MarkdownWeave</title>
 </head>

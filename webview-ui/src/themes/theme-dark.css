@@ -1,0 +1,79 @@
+/* MarkdownWeave Dark Reading Theme
+ *
+ * A deep, eye-friendly reading palette for long-form markdown documents.
+ * Applied when :html[data-mw-theme="dark"].
+ *
+ * Code block variables (--mw-codeblock-*) are intentionally absent —
+ * they fall through to variables.css defaults, keeping VS Code's styling.
+ */
+
+:root[data-mw-theme='dark'] {
+  /* ─── Surface ─────────────────────────────────────────────────── */
+  --mw-bg: #0d1117;
+  --mw-fg: #c9d1d9;
+
+  /* ─── Typography ──────────────────────────────────────────────── */
+  --mw-font-body: 'Merriweather', Georgia, 'Times New Roman', serif;
+  --mw-font-heading: 'Inter', -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --mw-font-size-base: 16px;
+  --mw-line-height: 1.75;
+  /* Heading scale */
+  --mw-h1-size: 2em;
+  --mw-h2-size: 1.5em;
+  --mw-h3-size: 1.25em;
+  --mw-h4-size: 1.1em;
+  --mw-h5-size: 1em;
+  --mw-h6-size: 0.9em;
+
+  /* ─── Headings ────────────────────────────────────────────────── */
+  --mw-heading-color: #e6edf3;
+  --mw-h6-color: #8b949e;
+
+  /* ─── Links ───────────────────────────────────────────────────── */
+  --mw-link-color: #58a6ff;
+  --mw-link-broken-color: #f85149;
+
+  /* ─── Blockquotes ─────────────────────────────────────────────── */
+  --mw-blockquote-border: #388bfd;
+  --mw-blockquote-fg: #8b949e;
+  --mw-blockquote-bg: #161b22;
+
+  /* ─── Inline code ─────────────────────────────────────────────── */
+  --mw-inline-code-bg: #161b22;
+  --mw-inline-code-fg: #c9d1d9;
+
+  /* ─── Tables ──────────────────────────────────────────────────── */
+  --mw-table-border: #30363d;
+  --mw-table-bg: #0d1117;
+  --mw-table-header-bg: #161b22;
+  --mw-table-stripe-bg: #161b22;
+
+  /* ─── Editor chrome ───────────────────────────────────────────── */
+  --mw-selection-bg: #1f4e79;
+  --mw-cursor-color: #c9d1d9;
+  --mw-gutter-bg: #0d1117;
+  --mw-gutter-fg: #484f58;
+  --mw-gutter-border: #30363d;
+  --mw-line-highlight-bg: #161b22;
+
+  /* ─── UI elements ─────────────────────────────────────────────── */
+  --mw-breadcrumb-bg: #0d1117;
+  --mw-breadcrumb-fg: #8b949e;
+  --mw-breadcrumb-border: #30363d;
+  --mw-widget-bg: #161b22;
+  --mw-widget-border: #30363d;
+  --mw-button-border: #30363d;
+  --mw-button-bg: #21262d;
+  --mw-button-fg: #c9d1d9;
+  --mw-button-hover-bg: #30363d;
+  --mw-badge-bg: #21262d;
+  --mw-badge-fg: #8b949e;
+  --mw-hr-color: #30363d;
+  --mw-list-marker-color: #484f58;
+  --mw-list-hover-bg: #161b22;
+
+  /* ─── Semantic ────────────────────────────────────────────────── */
+  --mw-error-color: #f85149;
+  --mw-description-color: #8b949e;
+  --mw-highlight-bg: #3d2b00;
+}

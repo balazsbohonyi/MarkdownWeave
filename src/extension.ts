@@ -187,6 +187,11 @@ export function activate(context: vscode.ExtensionContext): void {
       session.suppressPreviewUntil = Date.now() + SCROLL_SYNC_SUPPRESSION_MS;
       void session.previewPanel.webview.postMessage({ type: 'syncScrollToLine', line });
     }),
+    treeView.onDidChangeVisibility((e) => {
+      if (e.visible) {
+        MarkdownWeaveEditorProvider.revealCurrentHeading?.();
+      }
+    }),
     ...FORMATTING_COMMANDS.map(({ id, command }) =>
       vscode.commands.registerCommand(id, () => {
         MarkdownWeaveEditorProvider.sendCommandToActive(command);
@@ -198,6 +203,7 @@ export function activate(context: vscode.ExtensionContext): void {
     dispose: () => {
       MarkdownWeaveEditorProvider.previewScrollHandler = undefined;
       MarkdownWeaveEditorProvider.activePanelChangeHandler = undefined;
+      MarkdownWeaveEditorProvider.revealCurrentHeading = undefined;
       void vscode.commands.executeCommand('setContext', ACTIVE_STANDALONE_CONTEXT, false);
       Array.from(sideBySideSessions.keys()).forEach(disposeSideBySideSession);
     }

@@ -92,6 +92,16 @@ Original task IDs (P8-T1 through P8-T7) no longer match the original description
 
 **Why:** Imposing opinionated fonts by default surprised users who expected the editor to look like the rest of VS Code. Opt-in is the correct model — users discover the enhanced typography when they want it. The `@font-face` declarations remain in the HTML template (browsers don't download unreferenced fonts), so Phase 9 only needs to set the CSS variables to activate them.
 
+### Outline reveal behaviour and badge cleanup
+
+**Outline no longer forces sidebar open:** `treeView.reveal()` is now guarded by `tv.visible`. When the Markdown Weave Outline view is collapsed or hidden, cursor-line changes no longer call `reveal()` at all, so VS Code cannot use the call as a trigger to expand the sidebar. The sync is simply deferred.
+
+**Re-sync on outline becoming visible:** A `treeView.onDidChangeVisibility` subscription in `extension.ts` fires `MarkdownWeaveEditorProvider.revealCurrentHeading?.()` whenever the view transitions to visible. `revealCurrentHeading` is a static callback updated by `revealHeadingForLine` each time a cursor-line change resolves to a heading — so the correct heading is immediately highlighted the moment the user expands the panel, without requiring a cursor move.
+
+**H1–H6 prefix removed from tree items:** `OutlineProvider.getTreeItem()` now labels each item with `item.text` only (previously `H${item.level}  ${item.text}`). The hierarchy is already communicated by the tree's indentation; the prefix was redundant noise.
+
+---
+
 ### Arrow-key navigation skipping nested list items
 
 **Root cause:** CM6's `cursorLineUp`/`cursorLineDown` use `view.coordsAtPos()` then `view.posAtCoords()` internally to advance by visual pixel position. `coordsAtPos` returns `null` for any document position that is covered by a `Decoration.replace` widget, because the source characters are not present in the DOM. The `ListMarkerWidget` is an inline `Decoration.replace` that replaces the leading `- ` / `1. ` characters of every list item, so `line.from` of a list item line has null coords. In a document that also contains collapsed blocks (tables, code blocks, math), the custom `moveAcrossCollapsedBlock` handler fires for every Up/Down keypress. When it determined no collapsed block was involved and deferred to CM (`return false`), CM's coordinate-based navigation then skipped all list lines whose `.from` position returned null coords — jumping over entire nested sub-lists in one keystroke.

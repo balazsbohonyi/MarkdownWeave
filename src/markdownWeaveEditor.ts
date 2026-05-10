@@ -121,6 +121,7 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
     | ((uri: vscode.Uri, panel: vscode.WebviewPanel, line: number) => void)
     | undefined;
   public static activePanelChangeHandler: (() => void) | undefined;
+  public static revealCurrentHeading: (() => void) | undefined;
 
   public static get activePanel(): vscode.WebviewPanel | undefined {
     return MarkdownWeaveEditorProvider._activePanel;
@@ -389,6 +390,9 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
       if (!op || !tv || lastRevealRequestLine !== line) {
         return;
       }
+      if (!tv.visible) {
+        return;
+      }
       const heading = op.findHeadingForLine(line);
       if (!heading) {
         return;
@@ -416,6 +420,7 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
         return;
       }
       lastRevealRequestLine = line;
+      MarkdownWeaveEditorProvider.revealCurrentHeading = () => attemptReveal(lastRevealRequestLine, 3);
       attemptReveal(line, 3);
     };
 

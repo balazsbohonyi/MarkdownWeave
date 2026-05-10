@@ -30,8 +30,6 @@ Setext Heading Fixture
 
 This setext heading should appear in the outline and breadcrumb path. The paragraph includes inline math $d_{\text{model}} = 512$, escaped punctuation \*literal asterisks\*, and a reference-style link to the [project README][readme].
 
-[readme]: ../../README.md
-
 ## 1. Introduction
 
 Transformers replaced recurrence with attention, making sequence modeling easier to parallelize. In a live-preview editor, the paper format is useful because it naturally combines dense prose, formulas, figures, citations, tables, code, and nested structure.

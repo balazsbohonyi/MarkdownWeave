@@ -91,3 +91,17 @@ Original task IDs (P8-T1 through P8-T7) no longer match the original description
 **Decision:** The three theme files (light/dark/sepia) no longer set `--mw-font-body` or `--mw-font-heading`. Those variables fall through to the `variables.css` defaults, which pass through `--vscode-font-family`. The Merriweather + Inter pairing becomes opt-in via a Phase 9 setting (`markdownWeave.useBuiltInFonts`, boolean, default `false`).
 
 **Why:** Imposing opinionated fonts by default surprised users who expected the editor to look like the rest of VS Code. Opt-in is the correct model — users discover the enhanced typography when they want it. The `@font-face` declarations remain in the HTML template (browsers don't download unreferenced fonts), so Phase 9 only needs to set the CSS variables to activate them.
+
+### Arrow-key navigation skipping nested list items
+
+**Root cause:** CM6's `cursorLineUp`/`cursorLineDown` use `view.coordsAtPos()` then `view.posAtCoords()` internally to advance by visual pixel position. `coordsAtPos` returns `null` for any document position that is covered by a `Decoration.replace` widget, because the source characters are not present in the DOM. The `ListMarkerWidget` is an inline `Decoration.replace` that replaces the leading `- ` / `1. ` characters of every list item, so `line.from` of a list item line has null coords. In a document that also contains collapsed blocks (tables, code blocks, math), the custom `moveAcrossCollapsedBlock` handler fires for every Up/Down keypress. When it determined no collapsed block was involved and deferred to CM (`return false`), CM's coordinate-based navigation then skipped all list lines whose `.from` position returned null coords — jumping over entire nested sub-lists in one keystroke.
+
+**Fix (four parts, all in `webview-ui/src/`):**
+
+1. **`decorations/blockWidgets.ts` — `moveAcrossCollapsedBlock`**: Added a `coordsAtPos`-null check before returning `false` to CM. If the direct neighboring line's `.from` has null coords, intercept and navigate there by line number using `findColumn`/`countColumn` to preserve goal column. This catches the list-item skip scenario step-by-step.
+
+2. **`decorations/blockWidgets.ts` — `findCollapsedRangeForLine`**: Tightened boundary check from `<=`/`>=` to `<`/`>` (strict). The old inclusive check caused false-positive collapsed-range matches at the exact boundary lines adjacent to a collapsed block, which triggered the custom handler unnecessarily.
+
+3. **`decorations/blockWidgets.ts` — `getCollapsedAwareVerticalTarget`**: Fixed an off-by-one for the DOWN direction. When the current collapsed range ends exactly at a line boundary (`to === nextLine.from`), the target line number was computed one too high, skipping a line.
+
+4. **`main.css` — `.mw-list-line`**: Changed `margin-bottom: 0.2em` to `padding-bottom: 0.2em`. CM6's height oracle only measures `border + padding + content`; `margin-*` on `.cm-line` (applied via `Decoration.line()`) is invisible to CM, causing coordinate-based navigation to mis-measure line positions. Padding is visually identical but correctly measured.

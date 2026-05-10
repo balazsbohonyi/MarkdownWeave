@@ -1,0 +1,75 @@
+/* MarkdownWeave Light Reading Theme
+ *
+ * A clean, high-contrast reading palette for long-form markdown documents.
+ * Applied when :html[data-mw-theme="light"].
+ *
+ * Code block variables (--mw-codeblock-*) are intentionally absent —
+ * they fall through to variables.css defaults, keeping VS Code's styling.
+ */
+
+:root[data-mw-theme='light'] {
+  /* ─── Surface ─────────────────────────────────────────────────── */
+  --mw-bg: #ffffff;
+  --mw-fg: #1a1a1a;
+
+  /* ─── Typography ──────────────────────────────────────────────── */
+  --mw-font-size-base: 16px;
+  --mw-line-height: 1.75;
+  /* Heading scale */
+  --mw-h1-size: 2em;
+  --mw-h2-size: 1.5em;
+  --mw-h3-size: 1.25em;
+  --mw-h4-size: 1.1em;
+  --mw-h5-size: 1em;
+  --mw-h6-size: 0.9em;
+
+  /* ─── Headings ────────────────────────────────────────────────── */
+  --mw-heading-color: #0f172a;
+
+  /* ─── Links ───────────────────────────────────────────────────── */
+  --mw-link-color: #2563eb;
+  --mw-link-broken-color: #dc2626;
+
+  /* ─── Blockquotes ─────────────────────────────────────────────── */
+  --mw-blockquote-fg: #475569;
+
+  /* ─── Inline code ─────────────────────────────────────────────── */
+  --mw-inline-code-bg: #f8fafc;
+  --mw-inline-code-fg: #0f172a;
+  --mw-inline-code-border: #e2e8f0;
+
+  /* ─── Tables ──────────────────────────────────────────────────── */
+  --mw-table-border: #e2e8f0;
+  --mw-table-bg: #ffffff;
+  --mw-table-header-bg: #f8fafc;
+  --mw-table-stripe-bg: #f8fafc;
+
+  /* ─── Editor chrome ───────────────────────────────────────────── */
+  --mw-selection-bg: #bfdbfe;
+  --mw-cursor-color: #1a1a1a;
+  --mw-gutter-bg: #ffffff;
+  --mw-gutter-fg: #94a3b8;
+  --mw-gutter-border: #e2e8f0;
+  --mw-line-highlight-bg: #f8fafc;
+
+  /* ─── UI elements ─────────────────────────────────────────────── */
+  --mw-breadcrumb-bg: #ffffff;
+  --mw-breadcrumb-fg: #64748b;
+  --mw-breadcrumb-border: #e2e8f0;
+  --mw-widget-bg: #ffffff;
+  --mw-widget-border: #e2e8f0;
+  --mw-button-border: #e2e8f0;
+  --mw-button-bg: #f8fafc;
+  --mw-button-fg: #475569;
+  --mw-button-hover-bg: #f1f5f9;
+  --mw-badge-bg: #f1f5f9;
+  --mw-badge-fg: #475569;
+  --mw-hr-color: #e2e8f0;
+  --mw-list-marker-color: #94a3b8;
+  --mw-list-hover-bg: #f1f5f9;
+
+  /* ─── Semantic ────────────────────────────────────────────────── */
+  --mw-error-color: #dc2626;
+  --mw-description-color: #64748b;
+  --mw-highlight-bg: #ffd700;
+}

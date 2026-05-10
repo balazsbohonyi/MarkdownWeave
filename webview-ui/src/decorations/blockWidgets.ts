@@ -442,6 +442,32 @@ function moveAcrossCollapsedBlock(view: EditorView, direction: 'up' | 'down', ex
 
   const target = getCollapsedAwareVerticalTarget(view.state, selection.head, selection.goalColumn, direction, collapsedRanges);
   if (!target || target.position === selection.head) {
+    // Custom handler defers to CM. But CM uses coordsAtPos for line selection, which returns null
+    // for positions inside any Decoration.replace widget (e.g. list markers, HR widgets). When the
+    // immediate neighbour line's .from position has null coords, CM skips entire lines. Detect this
+    // and navigate by line number instead.
+    const directionStep = direction === 'down' ? 1 : -1;
+    const curLine = view.state.doc.lineAt(selection.head);
+    const neighborLineNumber = curLine.number + directionStep;
+    if (neighborLineNumber >= 1 && neighborLineNumber <= view.state.doc.lines) {
+      const neighborLine = view.state.doc.line(neighborLineNumber);
+      if (view.coordsAtPos(neighborLine.from) === null) {
+        const resolvedGoalColumn = selection.goalColumn ??
+          countColumn(curLine.text, view.state.tabSize,
+            Math.max(0, Math.min(curLine.length, selection.head - curLine.from)));
+        const pos = neighborLine.from + findColumn(neighborLine.text, resolvedGoalColumn, view.state.tabSize);
+        view.focus();
+        const range = extend
+          ? EditorSelection.range(selection.anchor, pos, resolvedGoalColumn)
+          : EditorSelection.cursor(pos, direction === 'down' ? -1 : 1, undefined, resolvedGoalColumn);
+        view.dispatch({
+          selection: EditorSelection.create([range]),
+          effects: [EditorView.scrollIntoView(range, { y: 'nearest', yMargin: 32 })],
+          scrollIntoView: true
+        });
+        return true;
+      }
+    }
     return false;
   }
 
@@ -545,7 +571,7 @@ function getCollapsedAwareVerticalTarget(
     goalColumn ?? countColumn(currentLine.text, state.tabSize, Math.max(0, Math.min(currentLine.length, head - currentLine.from)));
   let targetLineNumber = currentCollapsed
     ? direction === 'down'
-      ? state.doc.lineAt(currentCollapsed.to).number + 1
+      ? (() => { const l = state.doc.lineAt(currentCollapsed.to); return l.from === currentCollapsed.to ? l.number : l.number + 1; })()
       : state.doc.lineAt(currentCollapsed.from).number - 1
     : currentLine.number + directionStep;
   let crossedCollapsedRange = Boolean(currentCollapsed);
@@ -577,7 +603,7 @@ function getCollapsedAwareVerticalTarget(
     crossedCollapsedRange = true;
     targetLineNumber =
       direction === 'down'
-        ? state.doc.lineAt(targetCollapsed.to).number + 1
+        ? (() => { const l = state.doc.lineAt(targetCollapsed.to); return l.from === targetCollapsed.to ? l.number : l.number + 1; })()
         : state.doc.lineAt(targetCollapsed.from).number - 1;
   }
 
@@ -596,7 +622,7 @@ function findCollapsedRangeForLine(
   lineFrom: number,
   lineTo: number
 ): CollapsedBlockRange | undefined {
-  return ranges.find((range) => lineFrom <= range.to && lineTo >= range.from);
+  return ranges.find((range) => lineFrom < range.to && lineTo > range.from);
 }
 
 function buildCollapsedBlockAtomicRanges(state: EditorState): DecorationSet {

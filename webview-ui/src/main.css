@@ -1,3 +1,8 @@
+@import './themes/variables.css';
+@import './themes/theme-light.css';
+@import './themes/theme-dark.css';
+@import './themes/theme-sepia.css';
+
 html,
 body,
 #app {
@@ -12,9 +17,11 @@ body {
 }
 
 body {
-  background: var(--vscode-editor-background);
-  color: var(--vscode-editor-foreground);
-  font-family: var(--vscode-font-family);
+  background: var(--mw-bg);
+  color: var(--mw-fg);
+  font-family: var(--mw-font-body);
+  font-size: var(--mw-font-size-base);
+  line-height: var(--mw-line-height);
 }
 
 #app {
@@ -43,10 +50,11 @@ body {
   padding: 8px 28px;
   overflow-x: auto;
   scrollbar-width: none; /* Firefox */
-  border-bottom: 1px solid var(--vscode-editorWidget-border, transparent);
-  background: var(--vscode-editor-background);
-  color: var(--vscode-breadcrumb-foreground, var(--vscode-descriptionForeground));
-  font-size: 13px;
+  border-bottom: 1px solid var(--mw-breadcrumb-border);
+  background: var(--mw-breadcrumb-bg);
+  color: var(--mw-breadcrumb-fg);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
   white-space: nowrap;
 }
 
@@ -65,7 +73,6 @@ body {
 
 .bc-sep {
   margin: 0 5px;
-  font-size: 13px;
   opacity: 0.5;
   user-select: none;
 }
@@ -93,7 +100,7 @@ body {
 }
 
 .bc-label:hover {
-  color: var(--vscode-editor-foreground);
+  color: var(--mw-fg);
 }
 
 .cm-announced {
@@ -112,11 +119,13 @@ body {
   overflow-y: auto;
   margin: 0;
   padding: 4px 0;
-  border: 1px solid var(--vscode-editorWidget-border);
+  border: 1px solid var(--mw-widget-border);
   border-radius: 4px;
-  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  background: var(--mw-widget-bg);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   list-style: none;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
 }
 
 .bc-dropdown-item {
@@ -126,9 +135,8 @@ body {
   padding: 4px 12px;
   border: none;
   background: transparent;
-  color: var(--vscode-editor-foreground);
+  color: var(--mw-fg);
   font: inherit;
-  font-size: 12px;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -136,11 +144,11 @@ body {
 }
 
 .bc-dropdown-item:hover {
-  background: var(--vscode-list-hoverBackground);
+  background: var(--mw-list-hover-bg);
 }
 
 .bc-dropdown-item-active {
-  color: var(--vscode-textLink-foreground);
+  color: var(--mw-link-color);
 }
 
 #editor {
@@ -186,18 +194,19 @@ body.mw-breadcrumb-hidden #editor {
 }
 
 .cm-line {
-  min-height: 1.6em;
+  min-height: calc(var(--mw-line-height) * 1em);
   max-width: 100%;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
 .cm-cursor {
-  border-left-color: var(--vscode-editorCursor-foreground) !important;
+  border-left-color: var(--mw-cursor-color) !important;
 }
 
 .cm-line.mw-heading-line {
-  color: var(--vscode-editor-foreground);
+  color: var(--mw-heading-color);
+  font-family: var(--mw-font-heading);
   font-weight: 700;
   line-height: 1.25;
 }
@@ -205,38 +214,38 @@ body.mw-breadcrumb-hidden #editor {
 .cm-line.mw-h1-line {
   padding-top: 0.26em;
   padding-bottom: 0.12em;
-  font-size: 2em;
+  font-size: var(--mw-h1-size);
 }
 
 .cm-line.mw-h2-line {
   padding-top: 0.22em;
   padding-bottom: 0.1em;
-  font-size: 1.5em;
+  font-size: var(--mw-h2-size);
 }
 
 .cm-line.mw-h3-line {
   padding-top: 0.16em;
   padding-bottom: 0.08em;
-  font-size: 1.25em;
+  font-size: var(--mw-h3-size);
 }
 
 .cm-line.mw-h4-line {
   padding-top: 0.12em;
   padding-bottom: 0.06em;
-  font-size: 1.12em;
+  font-size: var(--mw-h4-size);
 }
 
 .cm-line.mw-h5-line {
   padding-top: 0.08em;
   padding-bottom: 0.04em;
-  font-size: 1em;
+  font-size: var(--mw-h5-size);
 }
 
 .cm-line.mw-h6-line {
   padding-top: 0.06em;
   padding-bottom: 0.03em;
-  color: var(--vscode-descriptionForeground);
-  font-size: 0.95em;
+  color: var(--mw-h6-color);
+  font-size: var(--mw-h6-size);
 }
 
 .mw-heading {
@@ -246,7 +255,7 @@ body.mw-breadcrumb-hidden #editor {
 }
 
 .mw-h6 {
-  color: var(--vscode-descriptionForeground);
+  color: var(--mw-h6-color);
 }
 
 .mw-strong {
@@ -262,54 +271,94 @@ body.mw-breadcrumb-hidden #editor {
 }
 
 .mw-inline-code {
-  padding: 0 0.28em;
+  padding: 0.15em 0.21em;
   border-radius: 4px;
-  background: var(--vscode-textCodeBlock-background);
-  color: var(--vscode-editor-foreground);
-  font-family: var(--vscode-editor-font-family, monospace);
+  border: 1px solid var(--mw-inline-code-border);
+  background: var(--mw-inline-code-bg);
+  color: var(--mw-inline-code-fg);
+  font-family: var(--mw-font-code);
   font-size: 0.92em;
 }
 
 .mw-link {
-  color: var(--vscode-textLink-foreground);
+  color: var(--mw-link-color);
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
 .mw-wikilink {
-  color: var(--vscode-textLink-foreground);
+  color: var(--mw-link-color);
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
 .mw-wikilink-broken {
-  color: var(--vscode-errorForeground);
+  color: var(--mw-link-broken-color);
   text-decoration: underline dotted;
   text-underline-offset: 2px;
   opacity: 0.8;
 }
 
 .mw-blockquote {
-  border-left: 3px solid var(--vscode-textBlockQuote-border, var(--vscode-editorWidget-border));
-  color: var(--vscode-textBlockQuote-foreground, var(--vscode-descriptionForeground));
-  background: var(--vscode-textBlockQuote-background, transparent);
+  border-left: 3px solid var(--mw-blockquote-fg);
+  color: var(--mw-blockquote-fg);
 }
 
 .cm-line.mw-blockquote {
   padding-left: 0.7em;
+  padding-top: 0.1em;
+  padding-bottom: 0.1em;
 }
 
-.mw-blockquote-depth-2 {
-  border-left-width: 5px;
+.cm-line.mw-blockquote.mw-blockquote-depth-2 {
+  position: relative;
+  padding-left: calc(1.5em + 0.7em);
 }
 
-.mw-blockquote-depth-3,
-.mw-blockquote-depth-4,
-.mw-blockquote-depth-5,
-.mw-blockquote-depth-6 {
-  border-left-width: 7px;
+.cm-line.mw-blockquote.mw-blockquote-depth-2::before {
+  content: '';
+  position: absolute;
+  left: 1.5em;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--mw-blockquote-fg);
+}
+
+.cm-line.mw-blockquote.mw-blockquote-depth-3,
+.cm-line.mw-blockquote.mw-blockquote-depth-4,
+.cm-line.mw-blockquote.mw-blockquote-depth-5,
+.cm-line.mw-blockquote.mw-blockquote-depth-6 {
+  position: relative;
+  padding-left: calc(3em + 0.7em);
+}
+
+.cm-line.mw-blockquote.mw-blockquote-depth-3::before,
+.cm-line.mw-blockquote.mw-blockquote-depth-4::before,
+.cm-line.mw-blockquote.mw-blockquote-depth-5::before,
+.cm-line.mw-blockquote.mw-blockquote-depth-6::before {
+  content: '';
+  position: absolute;
+  left: 1.5em;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--mw-blockquote-fg);
+}
+
+.cm-line.mw-blockquote.mw-blockquote-depth-3::after,
+.cm-line.mw-blockquote.mw-blockquote-depth-4::after,
+.cm-line.mw-blockquote.mw-blockquote-depth-5::after,
+.cm-line.mw-blockquote.mw-blockquote-depth-6::after {
+  content: '';
+  position: absolute;
+  left: 3em;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--mw-blockquote-fg);
 }
 
 .mw-hr-wrapper {
@@ -323,11 +372,12 @@ body.mw-breadcrumb-hidden #editor {
   display: block;
   width: 100%;
   height: 1px;
-  background: var(--vscode-editor-foreground);
+  background: var(--mw-hr-color);
 }
 
 .mw-list-line {
   padding-left: 0.2em;
+  padding-bottom: 0.2em;
 }
 
 .mw-list-indent-1 {
@@ -349,15 +399,33 @@ body.mw-breadcrumb-hidden #editor {
 
 .mw-list-marker {
   display: inline-block;
+  position: relative;
   width: 1.6em;
-  color: var(--vscode-editorLineNumber-foreground);
+  padding-right: 0.5em;
+  color: var(--mw-list-marker-color);
   text-align: right;
+}
+
+.mw-list-marker-bullet {
+  color: transparent;
+}
+
+.mw-list-marker-bullet::before {
+  content: '';
+  position: absolute;
+  right: 0.5em;
+  top: 50%;
+  width: 0.65em;
+  height: 0.1em;
+  border-radius: 1px;
+  background: var(--mw-list-marker-color);
+  transform: translateY(-50%);
 }
 
 .mw-list-marker-raw {
   display: inline-block;
   width: 1.6em;
-  color: var(--vscode-editorLineNumber-foreground);
+  color: var(--mw-list-marker-color);
   text-align: right;
   white-space: pre;
 }
@@ -365,16 +433,31 @@ body.mw-breadcrumb-hidden #editor {
 .mw-task-marker-raw {
   display: inline-block;
   margin: 0 0.45em 0 0.1em;
-  color: var(--vscode-editorLineNumber-foreground);
-  font-family: var(--vscode-editor-font-family, monospace);
+  color: var(--mw-list-marker-color);
+  font-family: var(--mw-font-code);
 }
 
 .mw-checkbox {
-  width: 1em;
-  height: 1em;
-  margin: 0 0.45em 0 0.1em;
-  vertical-align: -0.15em;
-  accent-color: var(--vscode-textLink-foreground);
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.35em;
+  height: 1.35em;
+  margin: 0 0.5em 0 0.1em;
+  vertical-align: -0.3em;
+  border: 1.5px solid var(--mw-list-marker-color);
+  border-radius: 50%;
+  cursor: pointer;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 70%;
+  flex-shrink: 0;
+}
+
+.mw-checkbox:checked {
+  border-color: var(--mw-checkbox-color);
+  background-color: var(--mw-checkbox-color);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 12 12' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2 6.5l2.5 2.5 5.5-5.5' stroke='white' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 .mw-image-widget {
@@ -413,10 +496,10 @@ body.mw-breadcrumb-hidden #editor {
   align-items: center;
   justify-content: center;
   padding: 8px;
-  border: 1px solid var(--vscode-editorWidget-border);
+  border: 1px solid var(--mw-widget-border);
   border-radius: 4px;
-  background: var(--vscode-textCodeBlock-background);
-  color: var(--vscode-descriptionForeground);
+  background: var(--mw-codeblock-bg);
+  color: var(--mw-description-color);
   text-align: center;
   white-space: normal;
 }
@@ -428,8 +511,8 @@ body.mw-breadcrumb-hidden #editor {
   display: none;
   width: 10px;
   height: 10px;
-  border: 1px solid var(--vscode-editor-background);
-  background: var(--vscode-textLink-foreground);
+  border: 1px solid var(--mw-bg);
+  background: var(--mw-link-color);
   cursor: nwse-resize;
 }
 
@@ -457,8 +540,8 @@ body.mw-image-resize-handle-hidden-after-resize .mw-image-widget:hover > .mw-ima
 .mw-codeblock {
   overflow: hidden;
   border-radius: 6px;
-  background: var(--vscode-textCodeBlock-background);
-  box-shadow: inset 0 0 0 1px var(--vscode-editorWidget-border, transparent);
+  background: var(--mw-codeblock-bg);
+  box-shadow: inset 0 0 0 1px var(--mw-codeblock-border);
 }
 
 .mw-codeblock-header {
@@ -470,11 +553,11 @@ body.mw-image-resize-handle-hidden-after-resize .mw-image-widget:hover > .mw-ima
   width: 100%;
   margin: 0;
   padding: 0 15px;
-  border: 1px solid var(--vscode-editorWidget-border, transparent);
+  border: 1px solid var(--mw-codeblock-border);
   border-bottom: 0;
   border-radius: 6px 6px 0 0;
-  background: var(--vscode-textCodeBlock-background);
-  color: var(--vscode-descriptionForeground);
+  background: var(--mw-codeblock-bg);
+  color: var(--mw-description-color);
   font-size: 0.92em;
   line-height: 1.55;
   user-select: none;
@@ -506,9 +589,9 @@ body.mw-image-resize-handle-hidden-after-resize .mw-image-widget:hover > .mw-ima
   overflow-x: hidden;
   margin: 0;
   padding: 12px 15px 8px;
-  background: var(--vscode-textCodeBlock-background);
-  color: var(--vscode-editor-foreground);
-  font-family: var(--vscode-editor-font-family, monospace);
+  background: var(--mw-codeblock-bg);
+  color: var(--mw-fg);
+  font-family: var(--mw-font-code);
   font-size: 0.92em;
   line-height: 1.55;
   overflow-wrap: anywhere;
@@ -539,9 +622,9 @@ body.mw-image-resize-handle-hidden-after-resize .mw-image-widget:hover > .mw-ima
 .cm-line.mw-code-line {
   box-sizing: border-box;
   min-height: 1.55em;
-  background: var(--vscode-textCodeBlock-background);
-  color: var(--vscode-editor-foreground);
-  font-family: var(--vscode-editor-font-family, monospace);
+  background: var(--mw-codeblock-bg);
+  color: var(--mw-fg);
+  font-family: var(--mw-font-code);
   font-size: 0.92em;
   line-height: 1.55;
   overflow-wrap: anywhere;
@@ -558,37 +641,37 @@ body.mw-image-resize-handle-hidden-after-resize .mw-image-widget:hover > .mw-ima
   padding-right: 15px;
   padding-left: 15px;
   box-shadow:
-    inset 1px 0 0 var(--vscode-editorWidget-border, transparent),
-    inset -1px 0 0 var(--vscode-editorWidget-border, transparent);
+    inset 1px 0 0 var(--mw-codeblock-border),
+    inset -1px 0 0 var(--mw-codeblock-border);
 }
 
 .cm-line.mw-code-block-start {
   border-radius: 6px 6px 0 0;
   box-shadow:
-    inset 0 1px 0 var(--vscode-editorWidget-border, transparent),
-    inset 1px 0 0 var(--vscode-editorWidget-border, transparent),
-    inset -1px 0 0 var(--vscode-editorWidget-border, transparent);
+    inset 0 1px 0 var(--mw-codeblock-border),
+    inset 1px 0 0 var(--mw-codeblock-border),
+    inset -1px 0 0 var(--mw-codeblock-border);
 }
 
 .cm-line.mw-code-block-end {
   border-radius: 0 0 6px 6px;
   box-shadow:
-    inset 0 -1px 0 var(--vscode-editorWidget-border, transparent),
-    inset 1px 0 0 var(--vscode-editorWidget-border, transparent),
-    inset -1px 0 0 var(--vscode-editorWidget-border, transparent);
+    inset 0 -1px 0 var(--mw-codeblock-border),
+    inset 1px 0 0 var(--mw-codeblock-border),
+    inset -1px 0 0 var(--mw-codeblock-border);
 }
 
 .cm-line.mw-code-block-start.mw-code-block-end {
   border-radius: 6px;
   box-shadow:
-    inset 0 1px 0 var(--vscode-editorWidget-border, transparent),
-    inset 0 -1px 0 var(--vscode-editorWidget-border, transparent),
-    inset 1px 0 0 var(--vscode-editorWidget-border, transparent),
-    inset -1px 0 0 var(--vscode-editorWidget-border, transparent);
+    inset 0 1px 0 var(--mw-codeblock-border),
+    inset 0 -1px 0 var(--mw-codeblock-border),
+    inset 1px 0 0 var(--mw-codeblock-border),
+    inset -1px 0 0 var(--mw-codeblock-border);
 }
 
 .cm-line.mw-code-fence-line {
-  color: var(--vscode-descriptionForeground);
+  color: var(--mw-description-color);
 }
 
 .cm-line.mw-code-body-start {
@@ -600,7 +683,7 @@ body.mw-image-resize-handle-hidden-after-resize .mw-image-widget:hover > .mw-ima
 }
 
 .mw-code-fence-marker {
-  color: var(--vscode-descriptionForeground);
+  color: var(--mw-description-color);
 }
 
 .cm-line.mw-code-fence-hidden {
@@ -618,6 +701,9 @@ body.mw-image-resize-handle-hidden-after-resize .mw-image-widget:hover > .mw-ima
   white-space: pre-wrap;
 }
 
+/* Shiki syntax highlighting — uses body.vscode-* selectors intentionally.
+ * These selectors must remain unchanged: they are the Shiki dual-theme
+ * mechanism and must NOT be converted to --mw-* variables. */
 body.vscode-light .mw-codeblock-content .shiki,
 body.vscode-light .mw-codeblock-content .shiki span {
   color: var(--shiki-light);
@@ -648,7 +734,7 @@ body.vscode-high-contrast .mw-codeblock-content .shiki {
 }
 
 .mw-table-widget-selected {
-  box-shadow: 0 0 0 2px var(--vscode-editor-selectionBackground);
+  box-shadow: 0 0 0 2px var(--mw-selection-bg);
 }
 
 .mw-table-widget *,
@@ -661,12 +747,12 @@ body.vscode-high-contrast .mw-codeblock-content .shiki {
   table-layout: fixed;
   width: 100%;
   overflow: hidden;
-  border: 1px solid var(--vscode-editorWidget-border);
+  border: 1px solid var(--mw-table-border);
   border-spacing: 0;
   border-collapse: separate;
   border-radius: 6px;
-  background: var(--vscode-editor-background);
-  color: var(--vscode-editor-foreground);
+  background: var(--mw-table-bg);
+  color: var(--mw-fg);
   font-size: 0.96em;
 }
 
@@ -674,8 +760,8 @@ body.vscode-high-contrast .mw-codeblock-content .shiki {
 .mw-table td {
   padding: 7px 10px;
   border: 0;
-  border-right: 1px solid var(--vscode-editorWidget-border);
-  border-bottom: 1px solid var(--vscode-editorWidget-border);
+  border-right: 1px solid var(--mw-table-border);
+  border-bottom: 1px solid var(--mw-table-border);
   vertical-align: top;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -691,12 +777,12 @@ body.vscode-high-contrast .mw-codeblock-content .shiki {
 }
 
 .mw-table th {
-  background: var(--vscode-editor-lineHighlightBackground, var(--vscode-textCodeBlock-background));
+  background: var(--mw-table-header-bg);
   font-weight: 700;
 }
 
 .mw-table tbody tr:nth-child(even) {
-  background: var(--vscode-list-hoverBackground, transparent);
+  background: var(--mw-table-stripe-bg);
 }
 
 .mw-table-align-left {
@@ -718,11 +804,11 @@ body.vscode-high-contrast .mw-codeblock-content .shiki {
   z-index: 1;
   min-width: 28px;
   height: 24px;
-  border: 1px solid var(--vscode-button-border, var(--vscode-editorWidget-border));
+  border: 1px solid var(--mw-button-border);
   border-radius: 4px;
-  background: var(--vscode-button-secondaryBackground, var(--vscode-editor-background));
-  color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
-  font-family: var(--vscode-editor-font-family, monospace);
+  background: var(--mw-button-bg);
+  color: var(--mw-button-fg);
+  font-family: var(--mw-font-code);
   font-size: 0.78em;
   cursor: pointer;
   user-select: none;
@@ -730,7 +816,7 @@ body.vscode-high-contrast .mw-codeblock-content .shiki {
 }
 
 .mw-table-toggle:hover {
-  background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
+  background: var(--mw-button-hover-bg);
 }
 
 .mw-table-toggle-raw-slot {
@@ -753,7 +839,7 @@ body.vscode-high-contrast .mw-codeblock-content .shiki {
 
 .mw-math {
   max-width: 100%;
-  color: var(--vscode-editor-foreground);
+  color: var(--mw-fg);
 }
 
 .mw-inline-math {
@@ -776,8 +862,8 @@ body.vscode-high-contrast .mw-codeblock-content .shiki {
 }
 
 .mw-math-error {
-  color: var(--vscode-errorForeground);
-  text-decoration: underline wavy var(--vscode-errorForeground);
+  color: var(--mw-error-color);
+  text-decoration: underline wavy var(--mw-error-color);
 }
 
 .mw-mermaid {
@@ -787,17 +873,17 @@ body.vscode-high-contrast .mw-codeblock-content .shiki {
   padding: 12px;
   border: 1px solid transparent;
   border-radius: 6px;
-  background: var(--vscode-editor-background);
+  background: var(--mw-bg);
   user-select: none;
   -webkit-user-select: none;
 }
 
 .mw-mermaid:hover {
-  border-color: var(--vscode-editorWidget-border, transparent);
+  border-color: var(--mw-widget-border);
 }
 
 .mw-mermaid-selected {
-  box-shadow: 0 0 0 2px var(--vscode-editor-selectionBackground);
+  box-shadow: 0 0 0 2px var(--mw-selection-bg);
 }
 
 .mw-mermaid * {
@@ -826,8 +912,8 @@ body.vscode-high-contrast .mw-codeblock-content .shiki {
 .mw-mermaid .edgeLabel,
 .mw-mermaid foreignObject,
 .mw-mermaid foreignObject * {
-  color: var(--vscode-editor-foreground) !important;
-  fill: var(--vscode-editor-foreground) !important;
+  color: var(--mw-fg) !important;
+  fill: var(--mw-fg) !important;
 }
 
 .mw-mermaid .node rect,
@@ -835,8 +921,8 @@ body.vscode-high-contrast .mw-codeblock-content .shiki {
 .mw-mermaid .node circle,
 .mw-mermaid .node ellipse,
 .mw-mermaid .node path {
-  fill: var(--vscode-editor-background) !important;
-  stroke: var(--vscode-textLink-foreground, var(--vscode-editor-foreground)) !important;
+  fill: var(--mw-bg) !important;
+  stroke: var(--mw-link-color) !important;
 }
 
 .mw-mermaid-resize-handle {
@@ -846,8 +932,8 @@ body.vscode-high-contrast .mw-codeblock-content .shiki {
   display: none;
   width: 10px;
   height: 10px;
-  border: 1px solid var(--vscode-editor-background);
-  background: var(--vscode-textLink-foreground);
+  border: 1px solid var(--mw-bg);
+  background: var(--mw-link-color);
   cursor: ew-resize;
 }
 
@@ -871,7 +957,7 @@ body.mw-mermaid-resize-handle-hidden-after-resize .mw-mermaid:hover > .mw-mermai
 .mw-mermaid-error {
   width: 100%;
   margin: 0;
-  color: var(--vscode-errorForeground);
+  color: var(--mw-error-color);
   white-space: pre-wrap;
 }
 
@@ -881,10 +967,10 @@ body.mw-mermaid-resize-handle-hidden-after-resize .mw-mermaid:hover > .mw-mermai
   min-height: 24px;
   margin: 0;
   padding: 2px 10px;
-  border: 1px solid var(--vscode-editorWidget-border);
+  border: 1px solid var(--mw-widget-border);
   border-radius: 999px;
-  background: var(--vscode-badge-background, var(--vscode-textCodeBlock-background));
-  color: var(--vscode-badge-foreground, var(--vscode-editor-foreground));
+  background: var(--mw-badge-bg);
+  color: var(--mw-badge-fg);
   font: inherit;
   font-size: 0.86em;
   cursor: pointer;
@@ -909,9 +995,9 @@ body.mw-mermaid-resize-handle-hidden-after-resize .mw-mermaid:hover > .mw-mermai
 
 .mw-html-block-empty {
   padding: 8px;
-  border: 1px dashed var(--vscode-editorWidget-border);
+  border: 1px dashed var(--mw-widget-border);
   border-radius: 4px;
-  color: var(--vscode-descriptionForeground);
+  color: var(--mw-description-color);
 }
 
 .mw-html-kbd,
@@ -919,12 +1005,12 @@ body.mw-mermaid-resize-handle-hidden-after-resize .mw-mermaid:hover > .mw-mermai
   display: inline-block;
   min-width: 1.3em;
   padding: 0.08em 0.38em;
-  border: 1px solid var(--vscode-editorWidget-border);
+  border: 1px solid var(--mw-widget-border);
   border-bottom-width: 2px;
   border-radius: 4px;
-  background: var(--vscode-textCodeBlock-background);
-  color: var(--vscode-editor-foreground);
-  font-family: var(--vscode-editor-font-family, monospace);
+  background: var(--mw-codeblock-bg);
+  color: var(--mw-fg);
+  font-family: var(--mw-font-code);
   font-size: 0.88em;
   line-height: 1.25;
   text-align: center;
@@ -932,8 +1018,10 @@ body.mw-mermaid-resize-handle-hidden-after-resize .mw-mermaid:hover > .mw-mermai
 
 .mw-html-mark,
 .mw-html-block mark {
-  background: var(--vscode-editor-findMatchHighlightBackground, #fff59d);
-  color: inherit;
+  background: var(--mw-highlight-bg);
+  color: #111111;
+  border-radius: 3px;
+  padding: 0.1em 0.15em;
 }
 
 .mw-html-sup,

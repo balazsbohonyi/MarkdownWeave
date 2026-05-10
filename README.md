@@ -26,7 +26,7 @@ source text.
 
 ## Current Status
 
-Completed through Phase 7:
+Completed through Phase 8:
 
 - VS Code custom editor registration for `.md` and `.markdown` files.
 - Webview-based editor shell with extension-host/webview messaging.
@@ -56,10 +56,13 @@ Completed through Phase 7:
   opening Markdown Weave to the side.
 - Standalone Markdown Weave toolbar actions for showing the native source and
   opening the document in side-by-side mode.
+- Light, dark, and sepia reading themes with full-override color palettes,
+  bundled editorial fonts (Inter + Merriweather) available as an opt-in setting,
+  and auto-detection of the active VS Code theme kind.
 
 Still planned:
 
-- Theming, settings, performance hardening, and publishing automation.
+- Settings and configuration UI, performance hardening, and publishing automation.
 
 ## Usage
 
@@ -174,7 +177,8 @@ built-in Markdown preview can render the resized image:
 | Native editor toolbar action for opening with Markdown Weave | Implemented |
 | Explorer context action for opening Markdown Weave to the side | Implemented |
 | Standalone Markdown Weave Show Source toolbar action | Implemented |
-| Light, dark, and sepia themes | Planned |
+| Light, dark, and sepia themes | Implemented |
+| Opt-in bundled editorial fonts (Inter + Merriweather) | Implemented |
 | Custom CSS loading and hot reload | Planned |
 | User settings and live configuration forwarding | Planned |
 | Large-file performance verification and optimization | Planned |

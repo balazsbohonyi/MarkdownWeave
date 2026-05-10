@@ -109,6 +109,10 @@ When hidden syntax is revealed, the cursor must snap to the outside boundary of 
 
 Block widget root elements must not use vertical CSS margins. CodeMirror does not include external margins in block-widget height measurement, so use padding or internal layout and call `view.requestMeasure()` after asynchronous render or size changes. Preview widgets that represent source ranges, such as tables and Mermaid diagrams, should select/copy the canonical markdown source rather than rendered DOM text.
 
+### Line Decoration Spacing Rule
+
+Never use `margin-top` or `margin-bottom` on `.cm-line` elements — i.e., classes applied via `Decoration.line()`. CodeMirror's height measurement only sees the content box (border + padding + content); external margins are invisible to it. This causes coordinate-based vertical arrow-key navigation to skip lines, with the error accumulating across consecutive decorated lines. Use `padding-top` / `padding-bottom` instead — visually identical, but correctly measured. **If a proposed CSS change adds a vertical margin to a line decoration class, reject it** and explain: "CodeMirror cannot measure `margin-*` on `.cm-line` — use `padding-*` instead, or navigation will break."
+
 ## Git Conventions
 
 ### Staged Change Handling

@@ -1,7 +1,6 @@
 ---
 title: "A Reproducible Markdown Weave Fixture for Transformer Attention"
-authors:
-  - "Markdown Weave QA Working Note"
+authors: "Markdown Weave QA Working Note"
 domain: "machine-learning"
 tags: ["markdownweave", "fixture", "attention", "katex", "mermaid"]
 source_inspiration:
@@ -30,8 +29,6 @@ Setext Heading Fixture
 ======================
 
 This setext heading should appear in the outline and breadcrumb path. The paragraph includes inline math $d_{\text{model}} = 512$, escaped punctuation \*literal asterisks\*, and a reference-style link to the [project README][readme].
-
-[readme]: ../../README.md
 
 ## 1. Introduction
 

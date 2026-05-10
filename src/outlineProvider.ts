@@ -35,7 +35,7 @@ export class OutlineProvider implements vscode.TreeDataProvider<HeadingItem> {
   }
 
   getTreeItem(item: HeadingItem): vscode.TreeItem {
-    const treeItem = new vscode.TreeItem(`H${item.level}  ${item.text}`);
+    const treeItem = new vscode.TreeItem(item.text);
     const children = this.childrenMap.get(item);
     treeItem.collapsibleState =
       children && children.length > 0

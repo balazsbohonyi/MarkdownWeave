@@ -864,12 +864,7 @@ function currentThemeKind(): 'light' | 'dark' | 'high-contrast' {
   return 'dark';
 }
 
-function markdownWeaveTheme(themeKind: 'light' | 'dark' | 'high-contrast') {
-  const gutterBackground =
-    themeKind === 'high-contrast'
-      ? 'var(--vscode-editor-background)'
-      : 'var(--vscode-editorGutter-background, var(--vscode-editor-background))';
-
+function markdownWeaveTheme(_themeKind: 'light' | 'dark' | 'high-contrast') {
   return EditorView.theme({
     '&': {
       height: '100%',
@@ -879,11 +874,11 @@ function markdownWeaveTheme(themeKind: 'light' | 'dark' | 'high-contrast') {
       flexDirection: 'column',
       minHeight: '0',
       minWidth: '0',
-      backgroundColor: 'var(--vscode-editor-background)',
-      color: 'var(--vscode-editor-foreground)',
-      fontFamily: 'var(--vscode-editor-font-family, var(--vscode-font-family))',
-      fontSize: 'var(--vscode-editor-font-size, 14px)',
-      lineHeight: '1.6'
+      backgroundColor: 'var(--mw-bg)',
+      color: 'var(--mw-fg)',
+      fontFamily: 'var(--mw-font-body)',
+      fontSize: 'var(--mw-font-size-base)',
+      lineHeight: 'var(--mw-line-height)'
     },
     '.cm-scroller': {
       flex: '1 1 auto',
@@ -902,7 +897,7 @@ function markdownWeaveTheme(themeKind: 'light' | 'dark' | 'high-contrast') {
       minWidth: '0',
       margin: '0 auto',
       padding: '16px',
-      caretColor: 'var(--vscode-editorCursor-foreground)',
+      caretColor: 'var(--mw-cursor-color)',
       minHeight: '100%',
       overflowWrap: 'anywhere'
     },
@@ -910,24 +905,24 @@ function markdownWeaveTheme(themeKind: 'light' | 'dark' | 'high-contrast') {
       outline: 'none !important'
     },
     '.cm-cursor': {
-      borderLeftColor: 'var(--vscode-editorCursor-foreground)'
+      borderLeftColor: 'var(--mw-cursor-color)'
     },
     '.cm-cursorLayer': {
       zIndex: '20'
     },
     '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
-      backgroundColor: 'var(--vscode-editor-selectionBackground)'
+      backgroundColor: 'var(--mw-selection-bg)'
     },
     '.cm-gutters': {
-      backgroundColor: gutterBackground,
-      color: 'var(--vscode-editorLineNumber-foreground)',
-      borderRightColor: 'var(--vscode-editorWidget-border, transparent)'
+      backgroundColor: 'var(--mw-gutter-bg)',
+      color: 'var(--mw-gutter-fg)',
+      borderRightColor: 'var(--mw-gutter-border)'
     },
     '.cm-activeLine': {
-      backgroundColor: 'var(--vscode-editor-lineHighlightBackground, transparent)'
+      backgroundColor: 'var(--mw-line-highlight-bg)'
     },
     '.cm-activeLineGutter': {
-      backgroundColor: 'var(--vscode-editor-lineHighlightBackground, transparent)'
+      backgroundColor: 'var(--mw-line-highlight-bg)'
     }
   });
 }

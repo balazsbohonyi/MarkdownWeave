@@ -19,6 +19,7 @@ import { toggleInlineCode } from './commands/toggleInlineCode';
 import { insertLink } from './commands/insertLink';
 import { toggleCodeBlock } from './commands/toggleCodeBlock';
 import { increaseHeadingLevel, decreaseHeadingLevel } from './commands/changeHeadingLevel';
+import { markdownSettingsChanged } from './settings';
 
 const STATE_DEBOUNCE_MS = 200;
 const CURSOR_SCROLL_MARGIN = 32;
@@ -45,6 +46,7 @@ export type MarkdownEditor = {
   scrollToLine(line: number): void;
   syncScrollToLine(line: number): void;
   insertAtCursor(text: string): void;
+  applySettings(): void;
   runCommand(name: string): void;
   destroy(): void;
 };
@@ -416,6 +418,15 @@ export function createMarkdownEditor(
         selection: { anchor: pos + text.length }
       });
       view.focus();
+    },
+    applySettings(): void {
+      view.dispatch({
+        effects: [
+          markdownSettingsChanged.of(undefined),
+          themeCompartment.reconfigure(markdownWeaveTheme(currentThemeKind()))
+        ]
+      });
+      view.requestMeasure();
     },
     runCommand(name: string): void {
       // CM6 keymap already handled this keypress — skip the VS Code postMessage duplicate.

@@ -1,6 +1,8 @@
-import { syntaxTree } from '@codemirror/language';
+import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import type { EditorState } from '@codemirror/state';
 import { findFrontmatterRange } from './decorations/ranges';
+
+const HEADING_PARSE_TIMEOUT_MS = 50;
 
 export interface HeadingItem {
   level: 1 | 2 | 3 | 4 | 5 | 6;
@@ -13,7 +15,9 @@ export function extractHeadings(state: EditorState): HeadingItem[] {
   const frontmatter = findFrontmatterRange(state);
   const headings: HeadingItem[] = [];
 
-  syntaxTree(state).iterate({
+  const tree = ensureSyntaxTree(state, state.doc.length, HEADING_PARSE_TIMEOUT_MS) ?? syntaxTree(state);
+
+  tree.iterate({
     enter(node) {
       const m = /^(?:ATX|Setext)Heading([1-6])$/.exec(node.name);
       if (!m) {

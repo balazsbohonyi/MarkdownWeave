@@ -165,6 +165,11 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('markdownWeave.scrollToHeading', (line: number) => {
       MarkdownWeaveEditorProvider.activePanel?.webview.postMessage({ type: 'scrollToLine', line });
     }),
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration('markdownWeave')) {
+        provider.broadcastSettings();
+      }
+    }),
     vscode.window.onDidChangeTextEditorVisibleRanges((event) => {
       const uriKey = event.textEditor.document.uri.toString();
       const session = sideBySideSessions.get(uriKey);

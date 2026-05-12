@@ -91,6 +91,22 @@ type WebviewSyncScrollFromPreviewMessage = {
   line: number;
 };
 
+type MarkdownWeaveTheme = 'auto' | 'light' | 'dark' | 'sepia';
+
+type MarkdownWeaveSettings = {
+  theme: MarkdownWeaveTheme;
+  useBuiltInFonts: boolean;
+  headingFont: string;
+  bodyFont: string;
+  customCssPath: string;
+  customCss?: string;
+  fontSize: number;
+  lineHeight: number;
+  enableWikiLinks: boolean;
+  enableMath: boolean;
+  enableMermaid: boolean;
+};
+
 type WebviewMessage =
   | WebviewReadyMessage
   | WebviewEditMessage
@@ -106,11 +122,28 @@ type WebviewMessage =
   | WebviewSyncScrollFromPreviewMessage;
 
 const DOCUMENT_SYNC_DEBOUNCE_MS = 200;
+const FONT_SIZE_MIN = 10;
+const FONT_SIZE_MAX = 32;
+const LINE_HEIGHT_MIN = 1;
+const LINE_HEIGHT_MAX = 2.5;
+
+type PanelState = {
+  panel: vscode.WebviewPanel;
+  document: vscode.TextDocument;
+  warnedCustomCssPaths: Set<string>;
+  customCssWatcherKey: string | undefined;
+};
+
+type CustomCssWatcherRecord = {
+  uri: vscode.Uri;
+  watcher: vscode.FileSystemWatcher;
+  panels: Set<vscode.WebviewPanel>;
+};
 
 export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = 'markdownWeave.editor';
 
-  private static readonly openPanels = new Map<string, vscode.WebviewPanel>();
+  private static readonly openPanels = new Map<string, Set<vscode.WebviewPanel>>();
   private static readonly pendingHeadings = new Map<string, string>();
   private static _activePanel: vscode.WebviewPanel | undefined;
   private static _activeUri: vscode.Uri | undefined;
@@ -132,14 +165,25 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
   }
 
   public static getPanel(uri: vscode.Uri): vscode.WebviewPanel | undefined {
-    return MarkdownWeaveEditorProvider.openPanels.get(uri.toString());
+    const panels = MarkdownWeaveEditorProvider.openPanels.get(uri.toString());
+    const panelList = panels ? Array.from(panels) : [];
+    return panelList.find((panel) => panel.active) ?? panelList.find((panel) => panel.visible) ?? panelList[0];
   }
 
   public static sendCommandToActive(command: string): void {
     MarkdownWeaveEditorProvider._activePanel?.webview.postMessage({ type: 'runCommand', command });
   }
 
+  private readonly panelStates = new Map<vscode.WebviewPanel, PanelState>();
+  private readonly customCssWatchers = new Map<string, CustomCssWatcherRecord>();
+
   public constructor(private readonly extensionUri: vscode.Uri) {}
+
+  public broadcastSettings(): void {
+    for (const state of this.panelStates.values()) {
+      void this.postSettings(state);
+    }
+  }
 
   public resolveCustomTextEditor(
     document: vscode.TextDocument,
@@ -168,14 +212,29 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
     webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
 
     const uriKey = document.uri.toString();
-    MarkdownWeaveEditorProvider.openPanels.set(uriKey, webviewPanel);
+    const panelState: PanelState = {
+      panel: webviewPanel,
+      document,
+      warnedCustomCssPaths: new Set<string>(),
+      customCssWatcherKey: undefined
+    };
+    this.panelStates.set(webviewPanel, panelState);
+    const panelsForUri = MarkdownWeaveEditorProvider.openPanels.get(uriKey) ?? new Set<vscode.WebviewPanel>();
+    panelsForUri.add(webviewPanel);
+    MarkdownWeaveEditorProvider.openPanels.set(uriKey, panelsForUri);
     if (webviewPanel.active) {
       MarkdownWeaveEditorProvider._activePanel = webviewPanel;
       MarkdownWeaveEditorProvider._activeUri = document.uri;
       MarkdownWeaveEditorProvider.activePanelChangeHandler?.();
     }
     disposables.push({ dispose: () => {
-      MarkdownWeaveEditorProvider.openPanels.delete(uriKey);
+      this.unregisterPanelCustomCssWatcher(panelState);
+      this.panelStates.delete(webviewPanel);
+      const panels = MarkdownWeaveEditorProvider.openPanels.get(uriKey);
+      panels?.delete(webviewPanel);
+      if (panels?.size === 0) {
+        MarkdownWeaveEditorProvider.openPanels.delete(uriKey);
+      }
       if (MarkdownWeaveEditorProvider._activePanel === webviewPanel) {
         MarkdownWeaveEditorProvider._activePanel = undefined;
         MarkdownWeaveEditorProvider._activeUri = undefined;
@@ -428,12 +487,15 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
       webviewPanel.webview.onDidReceiveMessage((message: WebviewMessage) => {
         if (message.type === 'ready') {
           isWebviewReady = true;
-          postDocumentContent('init', 'initial');
-          const pendingHeading = MarkdownWeaveEditorProvider.pendingHeadings.get(uriKey);
-          if (pendingHeading) {
-            MarkdownWeaveEditorProvider.pendingHeadings.delete(uriKey);
-            void webviewPanel.webview.postMessage({ type: 'scrollToHeading', heading: pendingHeading });
-          }
+          void (async () => {
+            await this.postSettings(panelState);
+            postDocumentContent('init', 'initial');
+            const pendingHeading = MarkdownWeaveEditorProvider.pendingHeadings.get(uriKey);
+            if (pendingHeading) {
+              MarkdownWeaveEditorProvider.pendingHeadings.delete(uriKey);
+              void webviewPanel.webview.postMessage({ type: 'scrollToHeading', heading: pendingHeading });
+            }
+          })();
           return;
         }
 
@@ -465,7 +527,7 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
         if (message.type === 'openWikiLink') {
           const uri = vscode.Uri.parse(message.uri);
           const targetKey = uri.toString();
-          const existingPanel = MarkdownWeaveEditorProvider.openPanels.get(targetKey);
+          const existingPanel = MarkdownWeaveEditorProvider.getPanel(uri);
           if (existingPanel) {
             existingPanel.reveal();
             if (message.heading) {
@@ -570,6 +632,155 @@ export class MarkdownWeaveEditorProvider implements vscode.CustomTextEditorProvi
         }
       })
     );
+  }
+
+  private async postSettings(state: PanelState): Promise<void> {
+    const settings = await this.getMarkdownWeaveSettings(state);
+    void state.panel.webview.postMessage({ type: 'settings', settings });
+  }
+
+  private async getMarkdownWeaveSettings(state: PanelState): Promise<MarkdownWeaveSettings> {
+    const document = state.document;
+    const config = vscode.workspace.getConfiguration('markdownWeave', document.uri);
+    const customCssPath = config.get<string>('customCssPath', '').trim();
+    const customCssUri = this.resolveCustomCssUri(customCssPath, document);
+    if (customCssPath && !customCssUri) {
+      this.warnCustomCssOnce(customCssPath, state);
+    }
+    const customCss = customCssUri ? await this.readCustomCss(customCssUri, customCssPath, state) : undefined;
+    this.updatePanelCustomCssWatcher(state, customCssUri);
+
+    return {
+      theme: this.normalizeTheme(config.get<string>('theme', 'auto')),
+      useBuiltInFonts: config.get<boolean>('useBuiltInFonts', false),
+      headingFont: config.get<string>('headingFont', ''),
+      bodyFont: config.get<string>('bodyFont', ''),
+      customCssPath,
+      customCss,
+      fontSize: this.clampNumber(config.get<number>('fontSize', 16), FONT_SIZE_MIN, FONT_SIZE_MAX, 16),
+      lineHeight: this.clampNumber(config.get<number>('lineHeight', 1.75), LINE_HEIGHT_MIN, LINE_HEIGHT_MAX, 1.75),
+      enableWikiLinks: config.get<boolean>('enableWikiLinks', true),
+      enableMath: config.get<boolean>('enableMath', true),
+      enableMermaid: config.get<boolean>('enableMermaid', true)
+    };
+  }
+
+  private resolveCustomCssUri(customCssPath: string, document: vscode.TextDocument): vscode.Uri | undefined {
+    if (!customCssPath) {
+      return undefined;
+    }
+
+    if (path.isAbsolute(customCssPath)) {
+      return vscode.Uri.file(path.normalize(customCssPath));
+    }
+
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+    if (!workspaceFolder) {
+      return undefined;
+    }
+
+    return vscode.Uri.file(path.resolve(workspaceFolder.uri.fsPath, customCssPath));
+  }
+
+  private async readCustomCss(
+    uri: vscode.Uri,
+    configuredPath: string,
+    state: PanelState
+  ): Promise<string | undefined> {
+    try {
+      const bytes = await vscode.workspace.fs.readFile(uri);
+      return new TextDecoder('utf-8').decode(bytes);
+    } catch {
+      this.warnCustomCssOnce(configuredPath, state);
+      return undefined;
+    }
+  }
+
+  private warnCustomCssOnce(configuredPath: string, state: PanelState): void {
+    if (state.warnedCustomCssPaths.has(configuredPath)) {
+      return;
+    }
+
+    state.warnedCustomCssPaths.add(configuredPath);
+    void vscode.window.showWarningMessage(`Markdown Weave could not load custom CSS: ${configuredPath}`);
+  }
+
+  private updatePanelCustomCssWatcher(state: PanelState, uri: vscode.Uri | undefined): void {
+    const nextKey = uri?.toString();
+    if (state.customCssWatcherKey === nextKey) {
+      return;
+    }
+
+    this.unregisterPanelCustomCssWatcher(state);
+    if (!uri || uri.scheme !== 'file') {
+      return;
+    }
+
+    const watcherKey = uri.toString();
+    let record = this.customCssWatchers.get(watcherKey);
+    if (!record) {
+      const pattern = new vscode.RelativePattern(vscode.Uri.file(path.dirname(uri.fsPath)), path.basename(uri.fsPath));
+      const watcher = vscode.workspace.createFileSystemWatcher(pattern);
+      record = {
+        uri,
+        watcher,
+        panels: new Set<vscode.WebviewPanel>()
+      };
+      watcher.onDidCreate((changedUri) => this.reloadCustomCssForUri(uri, changedUri));
+      watcher.onDidChange((changedUri) => this.reloadCustomCssForUri(uri, changedUri));
+      watcher.onDidDelete((changedUri) => this.reloadCustomCssForUri(uri, changedUri));
+      this.customCssWatchers.set(watcherKey, record);
+    }
+
+    record.panels.add(state.panel);
+    state.customCssWatcherKey = watcherKey;
+  }
+
+  private unregisterPanelCustomCssWatcher(state: PanelState): void {
+    const key = state.customCssWatcherKey;
+    if (!key) {
+      return;
+    }
+
+    state.customCssWatcherKey = undefined;
+    const record = this.customCssWatchers.get(key);
+    if (!record) {
+      return;
+    }
+
+    record.panels.delete(state.panel);
+    if (record.panels.size === 0) {
+      record.watcher.dispose();
+      this.customCssWatchers.delete(key);
+    }
+  }
+
+  private reloadCustomCssForUri(watchedUri: vscode.Uri, changedUri: vscode.Uri): void {
+    if (watchedUri.toString() !== changedUri.toString()) {
+      return;
+    }
+
+    const record = this.customCssWatchers.get(watchedUri.toString());
+    if (!record) {
+      return;
+    }
+
+    for (const panel of Array.from(record.panels)) {
+      const state = this.panelStates.get(panel);
+      if (state) {
+        void this.postSettings(state);
+      }
+    }
+  }
+
+  private normalizeTheme(value: string): MarkdownWeaveTheme {
+    return value === 'light' || value === 'dark' || value === 'sepia' ? value : 'auto';
+  }
+
+  private clampNumber(value: number | undefined, min: number, max: number, fallback: number): number {
+    return typeof value === 'number' && Number.isFinite(value)
+      ? Math.max(min, Math.min(max, value))
+      : fallback;
   }
 
   private getHtmlForWebview(webview: vscode.Webview): string {

@@ -19,6 +19,7 @@ const resizedMermaidWidths = new Map<string, number>();
 const renderedMermaidCache = new Map<string, string>();
 let mermaidStyleIndex = 0;
 let themeObserver: MutationObserver | undefined;
+let markdownThemeObserver: MutationObserver | undefined;
 let observedThemeIsDark = isDarkTheme();
 const MIN_MERMAID_WIDTH = 280;
 const MAX_MERMAID_WIDTH = 1000;
@@ -266,23 +267,35 @@ function renderMermaidError(code: string, error: unknown): HTMLElement {
 }
 
 function ensureThemeObserver(): void {
-  if (themeObserver) {
+  if (themeObserver && markdownThemeObserver) {
     return;
   }
 
-  themeObserver = new MutationObserver(() => {
-    const nextThemeIsDark = isDarkTheme();
-    if (nextThemeIsDark === observedThemeIsDark) {
-      return;
-    }
-
-    observedThemeIsDark = nextThemeIsDark;
-    mountedRenderers.forEach((render) => render());
-  });
+  themeObserver = new MutationObserver(rerenderIfThemeChanged);
   themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  markdownThemeObserver = new MutationObserver(rerenderIfThemeChanged);
+  markdownThemeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-mw-theme'] });
+}
+
+function rerenderIfThemeChanged(): void {
+  const nextThemeIsDark = isDarkTheme();
+  if (nextThemeIsDark === observedThemeIsDark) {
+    return;
+  }
+
+  observedThemeIsDark = nextThemeIsDark;
+  mountedRenderers.forEach((render) => render());
 }
 
 function isDarkTheme(): boolean {
+  const markdownTheme = document.documentElement.getAttribute('data-mw-theme');
+  if (markdownTheme === 'dark') {
+    return true;
+  }
+  if (markdownTheme === 'light' || markdownTheme === 'sepia') {
+    return false;
+  }
+
   return !document.body.classList.contains('vscode-light');
 }
 

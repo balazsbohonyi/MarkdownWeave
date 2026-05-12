@@ -68,6 +68,15 @@ export class DisplayMathWidget extends WidgetType {
   }
 }
 
+export function renderInlineMathElement(
+  container: HTMLElement,
+  view: EditorView,
+  tex: string,
+  raw: string
+): ResizeObserver | undefined {
+  return renderMath(container, view, tex, raw, false);
+}
+
 function renderMath(
   container: HTMLElement,
   view: EditorView,

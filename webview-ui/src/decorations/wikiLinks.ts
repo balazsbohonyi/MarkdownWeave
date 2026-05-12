@@ -3,6 +3,7 @@ import { StateEffect, StateField } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import { checkWikiLinks, setWikiLinkClearCallback, type WikiLinkStatus } from '../bridge';
+import { getMarkdownWeaveSettings, markdownSettingsChanged } from '../settings';
 
 export const wikiLinkStatusEffect = StateEffect.define<WikiLinkStatus[]>();
 export const clearWikiLinkStatusEffect = StateEffect.define<void>();
@@ -36,7 +37,7 @@ const wikiLinkStatusRequester = ViewPlugin.fromClass(
 
     public update(update: ViewUpdate): void {
       const hasClearEffect = update.transactions.some((tr) =>
-        tr.effects.some((e) => e.is(clearWikiLinkStatusEffect))
+        tr.effects.some((e) => e.is(clearWikiLinkStatusEffect) || e.is(markdownSettingsChanged))
       );
       if (update.docChanged || update.viewportChanged || hasClearEffect) {
         requestVisibleWikiLinkStatuses(update.view);
@@ -50,6 +51,10 @@ const wikiLinkStatusRequester = ViewPlugin.fromClass(
 );
 
 function requestVisibleWikiLinkStatuses(view: EditorView): void {
+  if (!getMarkdownWeaveSettings().enableWikiLinks) {
+    return;
+  }
+
   const statuses = view.state.field(wikiLinkStatusField);
   const targets: string[] = [];
 

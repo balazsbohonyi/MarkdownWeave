@@ -187,10 +187,92 @@
     "configuration": {
       "title": "Markdown Weave",
       "properties": {
+        "markdownWeave.theme": {
+          "type": "string",
+          "order": 10,
+          "enum": [
+            "auto",
+            "light",
+            "dark",
+            "sepia"
+          ],
+          "default": "auto",
+          "description": "Controls the Markdown Weave reading theme.",
+          "markdownDescription": "Controls the Markdown Weave reading theme. Use `auto` to follow VS Code's current light, dark, or high-contrast theme."
+        },
+        "markdownWeave.useBuiltInFonts": {
+          "type": "boolean",
+          "order": 20,
+          "default": false,
+          "description": "Use Markdown Weave's bundled reading fonts.",
+          "markdownDescription": "When enabled, Markdown Weave uses bundled Inter for headings and Merriweather for body text unless `markdownWeave.headingFont` or `markdownWeave.bodyFont` overrides them."
+        },
+        "markdownWeave.headingFont": {
+          "type": "string",
+          "order": 30,
+          "default": "",
+          "description": "CSS font-family value for rendered markdown headings.",
+          "markdownDescription": "CSS `font-family` value for rendered markdown headings. Leave empty to use the bundled heading font when `markdownWeave.useBuiltInFonts` is enabled, or VS Code's font otherwise."
+        },
+        "markdownWeave.bodyFont": {
+          "type": "string",
+          "order": 40,
+          "default": "",
+          "description": "CSS font-family value for rendered markdown body text.",
+          "markdownDescription": "CSS `font-family` value for rendered markdown body text. Leave empty to use the bundled body font when `markdownWeave.useBuiltInFonts` is enabled, or VS Code's font otherwise."
+        },
+        "markdownWeave.customCssPath": {
+          "type": "string",
+          "order": 70,
+          "default": "",
+          "description": "Path to a custom CSS file loaded into Markdown Weave webviews.",
+          "markdownDescription": "Path to a custom CSS file loaded into Markdown Weave webviews. Relative paths resolve from the workspace folder containing the markdown file. Absolute paths are also supported. Leave empty to disable custom CSS."
+        },
+        "markdownWeave.fontSize": {
+          "type": "number",
+          "order": 50,
+          "default": 16,
+          "minimum": 10,
+          "maximum": 32,
+          "description": "Base rendered markdown font size in pixels.",
+          "markdownDescription": "Base rendered markdown font size in pixels."
+        },
+        "markdownWeave.lineHeight": {
+          "type": "number",
+          "order": 60,
+          "default": 1.75,
+          "minimum": 1,
+          "maximum": 2.5,
+          "description": "Base rendered markdown line height.",
+          "markdownDescription": "Base rendered markdown line height."
+        },
+        "markdownWeave.enableWikiLinks": {
+          "type": "boolean",
+          "order": 80,
+          "default": true,
+          "description": "Render and resolve wiki links.",
+          "markdownDescription": "Render and resolve `[[wiki links]]`. When disabled, wiki-link source remains visible as plain markdown text."
+        },
+        "markdownWeave.enableMath": {
+          "type": "boolean",
+          "order": 90,
+          "default": true,
+          "description": "Render inline and display math with KaTeX.",
+          "markdownDescription": "Render inline and display math with KaTeX. When disabled, `$...$` and `$$...$$` remain raw source text."
+        },
+        "markdownWeave.enableMermaid": {
+          "type": "boolean",
+          "order": 100,
+          "default": true,
+          "description": "Render Mermaid fenced code blocks as diagrams.",
+          "markdownDescription": "Render Mermaid fenced code blocks as diagrams. When disabled, `mermaid` fences render as regular code blocks."
+        },
         "markdownWeave.pasteImageFolder": {
           "type": "string",
+          "order": 110,
           "default": "",
-          "description": "Folder for pasted images, relative to the document file. Leave empty to save in the document's directory."
+          "description": "Folder for pasted images, relative to the document file. Leave empty to save in the document's directory.",
+          "markdownDescription": "Folder for pasted images, relative to the document file. Leave empty to save in the document's directory."
         }
       }
     },

@@ -10,7 +10,8 @@ import {
 import { createMarkdownEditor, type MarkdownEditor } from './editor';
 import { extractHeadings, type HeadingItem } from './headings';
 import { Breadcrumb } from './breadcrumb';
-import { initTheme, observeThemeChanges } from './themes/themeManager';
+import { initTheme, observeThemeChanges, setThemeOverride } from './themes/themeManager';
+import { applyMarkdownWeaveSettings } from './settings';
 
 // Apply theme before creating the editor so CSS variables are correct on first paint
 initTheme();
@@ -38,6 +39,13 @@ window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
   const message = event.data;
 
   if (handleBridgeMessage(message)) {
+    return;
+  }
+
+  if (message.type === 'settings') {
+    applyMarkdownWeaveSettings(message.settings);
+    setThemeOverride(message.settings.theme);
+    editor?.applySettings();
     return;
   }
 

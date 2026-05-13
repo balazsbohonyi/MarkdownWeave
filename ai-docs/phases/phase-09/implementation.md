@@ -20,6 +20,7 @@ Register these `markdownWeave.*` settings in `package.json`, each with `descript
 - `enableWikiLinks`: boolean, default `true`
 - `enableMath`: boolean, default `true`
 - `enableMermaid`: boolean, default `true`
+- `openAsDefaultMarkdownEditor`: boolean, default `false`
 - Existing `pasteImageFolder`: string, default `""`
 
 Do not add `imageAssetsPath`; pasted image behavior remains controlled by `pasteImageFolder`.
@@ -62,6 +63,19 @@ Renderer toggles:
 - `enableMath=false`: KaTeX widgets are skipped; `$...$` and `$$...$$` remain raw.
 - `enableMermaid=false`: `mermaid` fences render as regular code blocks.
 
+### P9-T5: Default Markdown editor setting
+
+Add `markdownWeave.openAsDefaultMarkdownEditor` as an opt-in setting for opening `.md` and `.markdown` files with MarkdownWeave by default.
+
+Implementation behavior:
+
+- Keep `contributes.customEditors[].priority` as `option` so MarkdownWeave does not take over on install.
+- Activate on `onStartupFinished` so the setting can be synchronized reliably after VS Code starts.
+- When the setting is enabled, write global user `workbench.editorAssociations` entries for `*.md` and `*.markdown` with value `markdownWeave.editor`.
+- When the setting is disabled, remove only `*.md` and `*.markdown` entries whose value is exactly `markdownWeave.editor`.
+- Preserve all unrelated editor associations and avoid writing when the computed associations are unchanged.
+- Show a warning if VS Code rejects the settings update.
+
 ## Verification
 
 - `npm run compile`
@@ -70,3 +84,5 @@ Renderer toggles:
 - Confirm live changes apply without reloading webviews.
 - Confirm custom CSS loads, overrides settings CSS, updates on file changes, and is removed when the setting is emptied.
 - Confirm `pasteImageFolder` behavior is unchanged.
+- Confirm enabling `openAsDefaultMarkdownEditor` adds the global `workbench.editorAssociations` entries for `*.md` and `*.markdown`.
+- Confirm disabling `openAsDefaultMarkdownEditor` removes only MarkdownWeave-owned Markdown associations.

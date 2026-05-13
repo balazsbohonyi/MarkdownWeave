@@ -26,7 +26,7 @@ source text.
 
 ## Current Status
 
-Completed through Phase 8:
+Completed through Phase 9:
 
 - VS Code custom editor registration for `.md` and `.markdown` files.
 - Webview-based editor shell with extension-host/webview messaging.
@@ -59,10 +59,13 @@ Completed through Phase 8:
 - Light, dark, and sepia reading themes with full-override color palettes,
   bundled editorial fonts (Inter + Merriweather) available as an opt-in setting,
   and auto-detection of the active VS Code theme kind.
+- User settings with live forwarding to open Markdown Weave editors, including
+  reading theme, typography, renderer toggles, custom CSS, image paste folder,
+  and opt-in default Markdown editor association.
 
 Still planned:
 
-- Settings and configuration UI, performance hardening, and publishing automation.
+- Performance hardening and publishing automation.
 
 ## Usage
 
@@ -77,9 +80,53 @@ right. Markdown files opened in VS Code's native editor also show a Markdown
 Weave toolbar button; the default click opens directly with Markdown Weave, and
 Alt-click opens Markdown Weave to the side.
 
+Markdown Weave does not take over Markdown files on install. To make it the
+default editor for `.md` and `.markdown` files, enable
+`markdownWeave.openAsDefaultMarkdownEditor`. The setting updates VS Code's
+global `workbench.editorAssociations` entries for Markdown files. Turning it
+off removes only associations that point to Markdown Weave.
+
 When the cursor enters a decorated Markdown element, Markdown Weave reveals the
 raw syntax needed for editing. When the cursor leaves, the rendered decoration
 is restored.
+
+## Settings
+
+Markdown Weave contributes these settings under **Markdown Weave** in VS Code's
+Settings UI:
+
+| Setting | Default | Purpose |
+|---|---:|---|
+| `markdownWeave.theme` | `auto` | Chooses the reading theme: `auto`, `light`, `dark`, or `sepia`. |
+| `markdownWeave.openAsDefaultMarkdownEditor` | `false` | Makes Markdown Weave the default editor for `.md` and `.markdown` files by syncing global editor associations. |
+| `markdownWeave.useBuiltInFonts` | `false` | Uses bundled Inter headings and Merriweather body text when enabled. |
+| `markdownWeave.headingFont` | `""` | CSS `font-family` override for rendered headings. |
+| `markdownWeave.bodyFont` | `""` | CSS `font-family` override for rendered body text. |
+| `markdownWeave.fontSize` | `16` | Base rendered Markdown font size in pixels. |
+| `markdownWeave.lineHeight` | `1.75` | Base rendered Markdown line height. |
+| `markdownWeave.customCssPath` | `""` | Workspace-relative or absolute CSS file loaded into Markdown Weave webviews, with hot reload. |
+| `markdownWeave.enableWikiLinks` | `true` | Enables `[[wiki link]]` rendering, status checks, and navigation. |
+| `markdownWeave.enableMath` | `true` | Enables KaTeX rendering for inline and display math. |
+| `markdownWeave.enableMermaid` | `true` | Enables Mermaid diagram rendering for `mermaid` fenced code blocks. |
+| `markdownWeave.pasteImageFolder` | `""` | Folder for pasted images, relative to the Markdown document. Empty saves next to the document. |
+
+Custom CSS is injected after Markdown Weave's settings-generated CSS, so normal
+CSS precedence lets user styles override theme and typography variables without
+requiring `!important`.
+
+### Future Settings Under Consideration
+
+These settings are not implemented yet, but are good candidates for future
+configuration work:
+
+- `markdownWeave.editorMaxWidth`: maximum readable content width.
+- `markdownWeave.codeBlockMaxHeight`: maximum rendered code block height before scrolling.
+- `markdownWeave.syncScroll`: toggle side-by-side scroll synchronization.
+- `markdownWeave.frontmatter.defaultCollapsed`: frontmatter initial display mode.
+- `markdownWeave.table.defaultMode`: rendered table or raw source by default.
+- `markdownWeave.wikiLink.headingSeparator`: separator for rendered wiki-link heading targets.
+- `markdownWeave.katexMacros`: user-defined KaTeX macros.
+- `markdownWeave.preferredBoldMarker` and `markdownWeave.preferredItalicMarker`: marker style used by formatting commands.
 
 ## Implemented Markdown Editing
 
@@ -108,6 +155,8 @@ The beta currently supports live decorations for:
   fenced code block, `Ctrl+Shift+]`/`[` heading level up/down.
 - Image paste from clipboard with configurable target folder
   (`markdownWeave.pasteImageFolder`) and automatic folder creation.
+- Live settings for theme, typography, custom CSS, renderer toggles, and default
+  Markdown editor association.
 - Markdown Weave Outline panel in the Explorer with heading hierarchy,
   click-to-scroll navigation, active heading highlight, and debounced refresh.
 - Breadcrumb bar inside the editor showing the current heading path, with
@@ -179,8 +228,9 @@ built-in Markdown preview can render the resized image:
 | Standalone Markdown Weave Show Source toolbar action | Implemented |
 | Light, dark, and sepia themes | Implemented |
 | Opt-in bundled editorial fonts (Inter + Merriweather) | Implemented |
-| Custom CSS loading and hot reload | Planned |
-| User settings and live configuration forwarding | Planned |
+| Custom CSS loading and hot reload | Implemented |
+| User settings and live configuration forwarding | Implemented |
+| Opt-in default Markdown editor association | Implemented |
 | Large-file performance verification and optimization | Planned |
 | Marketplace and Open VSX publishing workflows | Planned |
 

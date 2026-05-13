@@ -15,7 +15,9 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "customEditors": [
@@ -199,6 +201,14 @@
           "default": "auto",
           "description": "Controls the Markdown Weave reading theme.",
           "markdownDescription": "Controls the Markdown Weave reading theme. Use `auto` to follow VS Code's current light, dark, or high-contrast theme."
+        },
+        "markdownWeave.openAsDefaultMarkdownEditor": {
+          "type": "boolean",
+          "scope": "application",
+          "order": 15,
+          "default": false,
+          "description": "Open Markdown files with Markdown Weave by default.",
+          "markdownDescription": "When enabled, Markdown Weave updates VS Code's global `workbench.editorAssociations` setting so `.md` and `.markdown` files open with Markdown Weave by default. When disabled, Markdown Weave removes only associations that point to `markdownWeave.editor`."
         },
         "markdownWeave.useBuiltInFonts": {
           "type": "boolean",

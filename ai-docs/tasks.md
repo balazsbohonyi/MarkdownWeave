@@ -139,6 +139,7 @@
 - [x] P9-T2: Settings listener (`onDidChangeConfiguration`) with live update
 - [x] P9-T3: Settings forwarding to webview on change
 - [x] P9-T4: Implement `markdownWeave.useBuiltInFonts` font toggle
+- [x] P9-T5: Implement `markdownWeave.openAsDefaultMarkdownEditor` default editor setting
 
 ## Phase 10: Performance & Large File Optimization
 

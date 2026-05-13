@@ -4,6 +4,12 @@ import { OutlineProvider } from './outlineProvider';
 
 const SCROLL_SYNC_SUPPRESSION_MS = 250;
 const ACTIVE_STANDALONE_CONTEXT = 'markdownWeave.activeStandaloneEditor';
+const DEFAULT_MARKDOWN_EDITOR_SETTING = 'openAsDefaultMarkdownEditor';
+const EDITOR_ASSOCIATIONS_SETTING = 'editorAssociations';
+const MARKDOWNWEAVE_EDITOR_ASSOCIATIONS: Record<string, string> = {
+  '*.md': MarkdownWeaveEditorProvider.viewType,
+  '*.markdown': MarkdownWeaveEditorProvider.viewType
+};
 
 const FORMATTING_COMMANDS: Array<{ id: string; command: string }> = [
   { id: 'markdownWeave.toggleBold', command: 'toggleBold' },
@@ -192,6 +198,7 @@ export function activate(context: vscode.ExtensionContext): void {
       session.suppressPreviewUntil = Date.now() + SCROLL_SYNC_SUPPRESSION_MS;
       void session.previewPanel.webview.postMessage({ type: 'syncScrollToLine', line });
     }),
+    syncDefaultMarkdownEditorAssociation(),
     treeView.onDidChangeVisibility((e) => {
       if (e.visible) {
         MarkdownWeaveEditorProvider.revealCurrentHeading?.();
@@ -225,6 +232,108 @@ function findVisibleRawEditor(session: SideBySideSession): vscode.TextEditor | u
   );
 
   return visibleForUri.find((editor) => editor.viewColumn === vscode.ViewColumn.One) ?? visibleForUri[0];
+}
+
+function syncDefaultMarkdownEditorAssociation(): vscode.Disposable {
+  let pendingSync: Promise<void> = applyDefaultMarkdownEditorAssociation();
+
+  const queueSync = (): void => {
+    pendingSync = pendingSync
+      .then(() => applyDefaultMarkdownEditorAssociation())
+      .catch(() => applyDefaultMarkdownEditorAssociation());
+  };
+
+  const listener = vscode.workspace.onDidChangeConfiguration((event) => {
+    if (
+      event.affectsConfiguration(`markdownWeave.${DEFAULT_MARKDOWN_EDITOR_SETTING}`) ||
+      event.affectsConfiguration(`workbench.${EDITOR_ASSOCIATIONS_SETTING}`)
+    ) {
+      queueSync();
+    }
+  });
+
+  return {
+    dispose: () => {
+      listener.dispose();
+      void pendingSync;
+    }
+  };
+}
+
+async function applyDefaultMarkdownEditorAssociation(): Promise<void> {
+  const enabled = vscode.workspace
+    .getConfiguration('markdownWeave')
+    .get<boolean>(DEFAULT_MARKDOWN_EDITOR_SETTING, false);
+  const workbenchConfig = vscode.workspace.getConfiguration('workbench');
+  const current = normalizeEditorAssociations(workbenchConfig.get<unknown>(EDITOR_ASSOCIATIONS_SETTING, {}));
+  const next = { ...current };
+
+  if (enabled) {
+    for (const [pattern, viewType] of Object.entries(MARKDOWNWEAVE_EDITOR_ASSOCIATIONS)) {
+      next[pattern] = viewType;
+    }
+  } else {
+    for (const [pattern, viewType] of Object.entries(MARKDOWNWEAVE_EDITOR_ASSOCIATIONS)) {
+      if (next[pattern] === viewType) {
+        delete next[pattern];
+      }
+    }
+  }
+
+  if (areEditorAssociationsEqual(current, next)) {
+    return;
+  }
+
+  try {
+    await workbenchConfig.update(EDITOR_ASSOCIATIONS_SETTING, next, vscode.ConfigurationTarget.Global);
+  } catch (error) {
+    console.warn('Markdown Weave failed to update workbench.editorAssociations.', error);
+    void vscode.window.showWarningMessage(
+      'Markdown Weave could not update VS Code editor associations for Markdown files.'
+    );
+  }
+}
+
+function normalizeEditorAssociations(value: unknown): Record<string, string> {
+  if (Array.isArray(value)) {
+    return value.reduce<Record<string, string>>((associations, item) => {
+      if (isEditorAssociationItem(item)) {
+        associations[item.filenamePattern] = item.viewType;
+      }
+      return associations;
+    }, {});
+  }
+
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+
+  return Object.entries(value).reduce<Record<string, string>>((associations, [pattern, viewType]) => {
+    if (typeof viewType === 'string') {
+      associations[pattern] = viewType;
+    }
+    return associations;
+  }, {});
+}
+
+function isEditorAssociationItem(value: unknown): value is { filenamePattern: string; viewType: string } {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    'filenamePattern' in value &&
+    'viewType' in value &&
+    typeof value.filenamePattern === 'string' &&
+    typeof value.viewType === 'string'
+  );
+}
+
+function areEditorAssociationsEqual(left: Record<string, string>, right: Record<string, string>): boolean {
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every((key) => Object.prototype.hasOwnProperty.call(right, key) && left[key] === right[key])
+  );
 }
 
 function findExistingStandaloneSourceColumn(

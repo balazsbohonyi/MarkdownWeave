@@ -50,3 +50,7 @@ Disabling wiki links or math removes the preview decoration path and leaves sour
 ### Custom CSS paths are document-workspace-relative
 
 Relative `customCssPath` values resolve from the workspace folder containing the markdown document. Absolute paths are also supported. Missing or unreadable files warn once per editor session and are watched so later creates or edits can update the panel.
+
+### Default editor behavior is opt-in through editor associations
+
+MarkdownWeave keeps its custom editor contribution priority as `option`. The `markdownWeave.openAsDefaultMarkdownEditor` setting synchronizes VS Code's global `workbench.editorAssociations` for `*.md` and `*.markdown` only when the user opts in. Disabling the setting removes only MarkdownWeave-owned Markdown associations so unrelated editor associations are preserved.

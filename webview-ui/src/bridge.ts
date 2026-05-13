@@ -106,6 +106,27 @@ export type HostRunCommandMessage = {
   command: string;
 };
 
+export type MarkdownWeaveTheme = 'auto' | 'light' | 'dark' | 'sepia';
+
+export type MarkdownWeaveSettings = {
+  theme: MarkdownWeaveTheme;
+  useBuiltInFonts: boolean;
+  headingFont: string;
+  bodyFont: string;
+  customCssPath: string;
+  customCss?: string;
+  fontSize: number;
+  lineHeight: number;
+  enableWikiLinks: boolean;
+  enableMath: boolean;
+  enableMermaid: boolean;
+};
+
+export type HostSettingsMessage = {
+  type: 'settings';
+  settings: MarkdownWeaveSettings;
+};
+
 export type HostMessage =
   | HostInitMessage
   | HostUpdateMessage
@@ -118,7 +139,8 @@ export type HostMessage =
   | HostSyncScrollToLineMessage
   | HostImageInsertedMessage
   | HostClearImageUriCacheMessage
-  | HostRunCommandMessage;
+  | HostRunCommandMessage
+  | HostSettingsMessage;
 
 export type WebviewEditChange = {
   from: number;

@@ -20,6 +20,7 @@ import { DisplayMathWidget, InlineMathWidget } from '../widgets/MathWidget';
 import { MermaidWidget } from '../widgets/MermaidWidget';
 import { TableRawToggleWidget, TableWidget, type ParsedTable, type TableAlignment } from '../widgets/TableWidget';
 import { applyShikiCss } from '../widgets/shikiCss';
+import { getMarkdownWeaveSettings, markdownSettingsChanged } from '../settings';
 import {
   findFrontmatterRange,
   type HiddenBoundary,
@@ -245,7 +246,11 @@ const codeHighlightRequester = ViewPlugin.fromClass(
     }
 
     public update(update: ViewUpdate): void {
-      if (update.docChanged || update.viewportChanged) {
+      if (
+        update.docChanged ||
+        update.viewportChanged ||
+        update.transactions.some((transaction) => transaction.effects.some((effect) => effect.is(markdownSettingsChanged)))
+      ) {
         requestVisibleCodeHighlights(update.view);
       }
     }
@@ -311,6 +316,7 @@ export const markdownBlockWidgets: Extension = [
 function buildBlockDecorations(state: EditorState): DecorationSet {
   const ranges: Range<Decoration>[] = [];
   const doc = state.doc.toString();
+  const settings = getMarkdownWeaveSettings();
   const hasFocus = state.field(blockWidgetFocusField);
   const forcedRawTables = state.field(tableRawRangesField);
   const codeHighlights = state.field(codeHighlightField);
@@ -355,26 +361,28 @@ function buildBlockDecorations(state: EditorState): DecorationSet {
     }
   });
 
-  const displayMathRanges = findDisplayMathRanges(state, doc, excludedRanges);
-  excludedRanges.push(...displayMathRanges);
-  for (const range of displayMathRanges) {
-    if (!shouldRevealBlockRaw(state, range.from, range.to, hasFocus)) {
-      ranges.push(
-        Decoration.replace({
-          block: true,
-          widget: new DisplayMathWidget(range.tex, range.raw, range.from)
-        }).range(range.from, range.to)
-      );
+  if (settings.enableMath) {
+    const displayMathRanges = findDisplayMathRanges(state, doc, collectMathBlockExcludedRanges(state));
+    excludedRanges.push(...displayMathRanges);
+    for (const range of displayMathRanges) {
+      if (!shouldRevealBlockRaw(state, range.from, range.to, hasFocus)) {
+        ranges.push(
+          Decoration.replace({
+            block: true,
+            widget: new DisplayMathWidget(range.tex, range.raw, range.from)
+          }).range(range.from, range.to)
+        );
+      }
     }
-  }
 
-  for (const range of findInlineMathRanges(state, doc, excludedRanges)) {
-    if (!isEditing(state, range.from, range.to, hasFocus)) {
-      ranges.push(
-        Decoration.replace({
-          widget: new InlineMathWidget(range.tex, range.raw, range.from)
-        }).range(range.from, range.to)
-      );
+    for (const range of findInlineMathRanges(state, doc, excludedRanges)) {
+      if (!isEditing(state, range.from, range.to, hasFocus)) {
+        ranges.push(
+          Decoration.replace({
+            widget: new InlineMathWidget(range.tex, range.raw, range.from)
+          }).range(range.from, range.to)
+        );
+      }
     }
   }
 
@@ -386,6 +394,7 @@ function buildBlockDecorations(state: EditorState): DecorationSet {
 function requestVisibleCodeHighlights(view: EditorView): void {
   const doc = view.state.doc.toString();
   const highlights = view.state.field(codeHighlightField);
+  const settings = getMarkdownWeaveSettings();
 
   for (const visibleRange of view.visibleRanges) {
     syntaxTree(view.state).iterate({
@@ -397,7 +406,11 @@ function requestVisibleCodeHighlights(view: EditorView): void {
         }
 
         const parsed = parseCodeBlock(view.state, node, doc);
-        if (parsed.lang === 'mermaid' || highlights.byId.has(parsed.id) || pendingCodeHighlightIds.has(parsed.id)) {
+        if (
+          (parsed.lang === 'mermaid' && settings.enableMermaid) ||
+          highlights.byId.has(parsed.id) ||
+          pendingCodeHighlightIds.has(parsed.id)
+        ) {
           return false;
         }
 
@@ -494,27 +507,29 @@ export function collectBlockHiddenBoundaries(state: EditorState): HiddenBoundary
   const excludedRanges = collectExcludedRanges(state, doc);
   const boundaries: HiddenBoundary[] = [];
 
-  for (const mathRange of findDisplayMathRanges(state, doc, excludedRanges)) {
-    addHiddenBoundary(boundaries, {
-      from: mathRange.from,
-      to: mathRange.to,
-      contentFrom: getDisplayMathContentFrom(state, mathRange),
-      contentTo: getDisplayMathContentTo(state, mathRange)
-    });
-  }
+  if (getMarkdownWeaveSettings().enableMath) {
+    for (const mathRange of findDisplayMathRanges(state, doc, collectMathBlockExcludedRanges(state))) {
+      addHiddenBoundary(boundaries, {
+        from: mathRange.from,
+        to: mathRange.to,
+        contentFrom: getDisplayMathContentFrom(state, mathRange),
+        contentTo: getDisplayMathContentTo(state, mathRange)
+      });
+    }
 
-  excludedRanges.push(...boundaries.map(({ from, to }) => ({ from, to })));
+    excludedRanges.push(...boundaries.map(({ from, to }) => ({ from, to })));
 
-  const inlineMathRanges = findInlineMathRanges(state, doc, excludedRanges);
-  for (const mathRange of inlineMathRanges) {
-    addHiddenBoundary(boundaries, {
-      from: mathRange.from,
-      to: mathRange.to,
-      contentFrom: mathRange.from + 1,
-      contentTo: mathRange.to - 1
-    });
+    const inlineMathRanges = findInlineMathRanges(state, doc, excludedRanges);
+    for (const mathRange of inlineMathRanges) {
+      addHiddenBoundary(boundaries, {
+        from: mathRange.from,
+        to: mathRange.to,
+        contentFrom: mathRange.from + 1,
+        contentTo: mathRange.to - 1
+      });
+    }
+    excludedRanges.push(...inlineMathRanges.map(({ from, to }) => ({ from, to })));
   }
-  excludedRanges.push(...inlineMathRanges.map(({ from, to }) => ({ from, to })));
 
   for (const htmlRange of findInlineHtmlRanges(state, excludedRanges)) {
     if (!htmlRange.allowed || htmlRange.tag === 'img' || htmlRange.contentFrom >= htmlRange.contentTo) {
@@ -637,6 +652,7 @@ function buildCollapsedBlockAtomicRanges(state: EditorState): DecorationSet {
 
 function findCollapsedBlockRanges(state: EditorState): CollapsedBlockRange[] {
   const doc = state.doc.toString();
+  const settings = getMarkdownWeaveSettings();
   const hasFocus = state.field(blockWidgetFocusField);
   const forcedRawTables = state.field(tableRawRangesField);
   const frontmatterRange = findFrontmatterRange(state);
@@ -654,7 +670,7 @@ function findCollapsedBlockRanges(state: EditorState): CollapsedBlockRange[] {
 
       if (node.name === 'FencedCode') {
         const parsed = parseCodeBlock(state, node, doc);
-        const sourceActive = parsed.lang === 'mermaid'
+        const sourceActive = parsed.lang === 'mermaid' && settings.enableMermaid
           ? isMermaidSourceActive(state, node.from, node.to, hasFocus)
           : shouldRevealCodeBlockRaw(state, node.from, node.to, hasFocus);
         if (!sourceActive) {
@@ -693,9 +709,11 @@ function findCollapsedBlockRanges(state: EditorState): CollapsedBlockRange[] {
     excludedRanges.push(frontmatterRange);
   }
 
-  for (const range of findDisplayMathRanges(state, doc, excludedRanges)) {
-    if (!shouldRevealBlockRaw(state, range.from, range.to, hasFocus)) {
-      ranges.push({ from: range.from, to: range.to, kind: 'block' });
+  if (settings.enableMath) {
+    for (const range of findDisplayMathRanges(state, doc, collectMathBlockExcludedRanges(state))) {
+      if (!shouldRevealBlockRaw(state, range.from, range.to, hasFocus)) {
+        ranges.push({ from: range.from, to: range.to, kind: 'block' });
+      }
     }
   }
 
@@ -712,8 +730,9 @@ function addCodeBlockDecoration(
 ): void {
   const parsed = parseCodeBlock(state, node, doc);
   const editing = shouldRevealCodeBlockRaw(state, node.from, node.to, hasFocus);
+  const mermaidEnabled = getMarkdownWeaveSettings().enableMermaid;
 
-  if (parsed.lang === 'mermaid') {
+  if (parsed.lang === 'mermaid' && mermaidEnabled) {
     if (isMermaidSourceActive(state, node.from, node.to, hasFocus)) {
       addCodeLineDecorations(ranges, state, parsed, true);
       return;
@@ -1227,6 +1246,27 @@ function collectExcludedRanges(state: EditorState, doc: string): RawRange[] {
   return ranges;
 }
 
+function collectMathBlockExcludedRanges(state: EditorState): RawRange[] {
+  const ranges: RawRange[] = [];
+
+  syntaxTree(state).iterate({
+    enter(node) {
+      if (
+        node.name === 'FencedCode' ||
+        node.name === 'InlineCode' ||
+        node.name === 'HTMLBlock'
+      ) {
+        ranges.push({ from: node.from, to: node.to });
+        return false;
+      }
+
+      return true;
+    }
+  });
+
+  return ranges;
+}
+
 function findDisplayMathRanges(state: EditorState, doc: string, excludedRanges: RawRange[]): MathRange[] {
   const ranges: MathRange[] = [];
   let lineNumber = 1;
@@ -1477,7 +1517,8 @@ function isBlockWidgetEffect(effect: StateEffect<unknown>): boolean {
     effect.is(toggleFrontmatterExpanded) ||
     effect.is(collapseFrontmatter) ||
     effect.is(setSelectionRevealState) ||
-    effect.is(setCodeHighlight)
+    effect.is(setCodeHighlight) ||
+    effect.is(markdownSettingsChanged)
   );
 }
 

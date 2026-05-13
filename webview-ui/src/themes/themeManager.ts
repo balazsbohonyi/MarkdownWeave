@@ -1,4 +1,5 @@
 type MwTheme = 'light' | 'dark' | 'sepia';
+let themeOverride: MwTheme | 'auto' = 'auto';
 
 function detectTheme(): MwTheme | null {
   const cls = document.body.classList;
@@ -17,17 +18,20 @@ function applyTheme(theme: MwTheme | null): void {
 }
 
 export function initTheme(): void {
-  applyTheme(detectTheme());
+  applyTheme(themeOverride === 'auto' ? detectTheme() : themeOverride);
 }
 
 export function observeThemeChanges(): void {
   const observer = new MutationObserver(() => {
-    applyTheme(detectTheme());
+    if (themeOverride === 'auto') {
+      applyTheme(detectTheme());
+    }
   });
   observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
 }
 
 export function setThemeOverride(theme: MwTheme | 'auto'): void {
+  themeOverride = theme;
   if (theme === 'auto') {
     applyTheme(detectTheme());
   } else {

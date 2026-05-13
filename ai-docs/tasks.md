@@ -133,12 +133,13 @@
 
 ## Phase 9: Settings & Configuration
 
-[Task Details](./phases/phase-09/plan.md)
+[Task Details](./phases/phase-09/implementation.md) | [Decisions](./phases/phase-09/decisions.md)
 
-- [ ] P9-T1: Register all settings in `contributes.configuration`
-- [ ] P9-T2: Settings listener (`onDidChangeConfiguration`) with live update
-- [ ] P9-T3: Settings forwarding to webview on change
-- [ ] P9-T4: Implement `markdownWeave.useBuiltInFonts` font toggle
+- [x] P9-T1: Register all settings in `contributes.configuration`
+- [x] P9-T2: Settings listener (`onDidChangeConfiguration`) with live update
+- [x] P9-T3: Settings forwarding to webview on change
+- [x] P9-T4: Implement `markdownWeave.useBuiltInFonts` font toggle
+- [x] P9-T5: Implement `markdownWeave.openAsDefaultMarkdownEditor` default editor setting
 
 ## Phase 10: Performance & Large File Optimization
 

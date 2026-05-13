@@ -10,6 +10,7 @@ import { ListMarkerWidget } from '../widgets/ListMarkerWidget';
 import { WikiLinkWidget } from '../widgets/WikiLinkWidget';
 import { postOpenLink, postOpenWikiLink, requestWikiLinkStatus, setImageUriClearCallback } from '../bridge';
 import { wikiLinkStatusField } from './wikiLinks';
+import { getMarkdownWeaveSettings, markdownSettingsChanged } from '../settings';
 import { collectBlockHiddenBoundaries } from './blockWidgets';
 import {
   expandSelectionToHiddenBoundaries,
@@ -72,6 +73,11 @@ export const markdownDecorations = ViewPlugin.fromClass(
 
     public update(update: ViewUpdate): void {
       if (update.transactions.some((transaction) => transaction.effects.some((effect) => effect.is(selectionSettled)))) {
+        this.decorations = buildDecorations(update.view);
+        return;
+      }
+
+      if (update.transactions.some((transaction) => transaction.effects.some((effect) => effect.is(markdownSettingsChanged)))) {
         this.decorations = buildDecorations(update.view);
         return;
       }
@@ -599,6 +605,10 @@ function linkDecoration(node: SyntaxNodeRef, context: DecorationContext): Range<
 }
 
 function wikiLinkDecoration(node: SyntaxNodeRef, context: DecorationContext): Range<Decoration>[] {
+  if (!getMarkdownWeaveSettings().enableWikiLinks) {
+    return [];
+  }
+
   if (isEditing(context.state, node.from, node.to, context.hasFocus)) {
     return [];
   }
@@ -1133,7 +1143,7 @@ function openLinkFromMouseEvent(event: MouseEvent, view: EditorView): boolean {
   }
 
   const wikiLink = findWikiLinkAt(view.state, pos);
-  if (wikiLink) {
+  if (wikiLink && getMarkdownWeaveSettings().enableWikiLinks) {
     event.preventDefault();
     event.stopPropagation();
     const status = requestWikiLinkStatus(wikiLink.target);

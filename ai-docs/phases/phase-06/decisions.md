@@ -28,6 +28,10 @@ A new `HostScrollToLineMessage` (`{ type: 'scrollToLine'; line: number }`) was a
 
 ## Decisions
 
+- Outline and breadcrumb heading extraction asks CodeMirror to parse through the end of the document before walking heading nodes. `syntaxTree(state)` can be viewport-limited immediately after load, which can otherwise truncate the heading list and leave breadcrumbs stuck on the last parsed early section.
+
+- Breadcrumb ancestor paths are computed as a heading stack from the top of the document to the cursor. When a heading is reached, prior headings at the same or deeper level are removed before the new heading is pushed, preventing stale subheadings from earlier sibling sections from appearing under later headings.
+
 - `HeadingItem` interface defined in both `webview-ui/src/headings.ts` (webview) and `src/outlineProvider.ts` (host) separately — no shared types file exists in the project.
 - Breadcrumb `<nav id="breadcrumb">` placed as first child of `<main id="app">` with negative margins to break out of the 20px/28px app padding, giving it full width.
 - Breadcrumb sibling dropdown uses `position: fixed` with `getBoundingClientRect()` — no popover API dependency.

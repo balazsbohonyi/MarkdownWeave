@@ -140,6 +140,14 @@ Tables open pipe-table source only through the table source toggle button and re
 
 Table preview participates in the shared collapsed-block navigation rules instead of using table-specific cursor reveal behavior.
 
+### Table preview cells render supported inline Markdown
+
+Rendered pipe-table cells now render the same user-facing inline Markdown constructs that remain visible in raw table mode: inline code, emphasis, strong text, strikethrough, links, wiki links, inline math, and Markdown images. The table remains a collapsed block widget; rich cell editing is still out of scope, and raw source remains available through the table toggle.
+
+Reason:
+
+Plain text table preview made Markdown syntax inside cells look broken compared with the same table in raw edit mode.
+
 ### Collapsed block widgets use source-aware vertical navigation
 
 Collapsed preview ranges share a custom ArrowUp/ArrowDown handler that moves by source lines while treating each collapsed preview range as one visual stop. Most collapsed widgets also expose their source ranges through `EditorView.atomicRanges`; inactive fenced code previews are intentionally excluded from atomic ranges so Shift-selection can enter their source one line at a time.

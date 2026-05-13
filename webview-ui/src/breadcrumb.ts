@@ -220,22 +220,23 @@ export class Breadcrumb {
 
   /**
    * Walk backward from cursor to find the nearest heading of each level —
-   * the "ancestor chain" from outermost (lowest number) to innermost.
-   *
-   * When cursor is above all headings, returns the first top-level heading
-   * so the breadcrumb always shows something (unless document has no headings).
+   * Builds the active heading stack from the top of the document to the cursor.
+   * A new heading replaces any previous heading at the same or deeper level.
    */
   private computeAncestors(): HeadingItem[] {
-    const byLevel = new Map<number, HeadingItem>();
+    const chain: HeadingItem[] = [];
 
     for (const h of this.headings) {
       if (h.line > this.cursorLine) {
         break;
       }
-      byLevel.set(h.level, h);
+      while (chain.length > 0 && chain[chain.length - 1].level >= h.level) {
+        chain.pop();
+      }
+      chain.push(h);
     }
 
-    if (byLevel.size === 0) {
+    if (chain.length === 0) {
       // Cursor is above all headings — show the first top-level heading as context
       if (this.headings.length === 0) {
         return [];
@@ -243,20 +244,6 @@ export class Breadcrumb {
       const topLevel = Math.min(...this.headings.map(h => h.level));
       const first = this.headings.find(h => h.level === topLevel);
       return first ? [first] : [];
-    }
-
-    // Determine the chain: find min level present, then keep only items
-    // that form a coherent ancestor path (each level >= previous in the chain)
-    const minLevel = Math.min(...byLevel.keys());
-    const chain: HeadingItem[] = [];
-    let lastLevel = 0;
-
-    for (let lvl = minLevel; lvl <= 6; lvl++) {
-      const h = byLevel.get(lvl);
-      if (h && h.level > lastLevel) {
-        chain.push(h);
-        lastLevel = h.level;
-      }
     }
 
     return chain;
